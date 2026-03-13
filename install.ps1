@@ -65,6 +65,7 @@ Write-Host ""
 Write-Host "Installed $binary $version to $binaryPath"
 
 # Auto-configure mcp_config.json
+# Avoid PowerShell 5.1 ConvertTo-Json bugs (empty arrays → null, UTF8 BOM)
 $mcpConfigPath = Join-Path $env:USERPROFILE ".codeium\windsurf\mcp_config.json"
 $mcpConfigDir = Split-Path $mcpConfigPath
 $binaryPathForJson = $binaryPath -replace '\\', '/'
@@ -73,41 +74,58 @@ if (-not (Test-Path $mcpConfigDir)) {
     New-Item -ItemType Directory -Path $mcpConfigDir -Force | Out-Null
 }
 
+$detritusBlock = @"
+    "detritus": {
+      "command": "$binaryPathForJson",
+      "args": [],
+      "disabled": false
+    }
+"@
+
 if (Test-Path $mcpConfigPath) {
-    $config = Get-Content $mcpConfigPath -Raw | ConvertFrom-Json
-    if (-not $config.mcpServers) {
-        $config | Add-Member -NotePropertyName "mcpServers" -NotePropertyValue ([PSCustomObject]@{})
-    }
-    $detritusCfg = [PSCustomObject]@{
-        command  = $binaryPathForJson
-        args     = @()
-        disabled = $false
-    }
-    if ($config.mcpServers.detritus) {
-        $config.mcpServers.detritus = $detritusCfg
+    $raw = Get-Content $mcpConfigPath -Raw
+    if ($raw -match '"detritus"\s*:') {
+        # Replace existing detritus block (match up to closing brace at same indent)
+        $raw = [regex]::Replace($raw, '"detritus"\s*:\s*\{[^}]*\}', $detritusBlock.Trim())
         Write-Host "Updated existing detritus entry in $mcpConfigPath"
-    } else {
-        $config.mcpServers | Add-Member -NotePropertyName "detritus" -NotePropertyValue $detritusCfg
+    } elseif ($raw -match '"mcpServers"\s*:\s*\{') {
+        # Insert detritus into existing mcpServers
+        $raw = [regex]::Replace($raw, '("mcpServers"\s*:\s*\{)', "`$1`n$detritusBlock,")
         Write-Host "Added detritus to $mcpConfigPath"
+    } else {
+        # No mcpServers key, wrap entire file
+        $json = @"
+{
+  "mcpServers": {
+$detritusBlock
+  }
+}
+"@
+        $raw = $json
+        Write-Host "Created mcpServers with detritus in $mcpConfigPath"
     }
-    $config | ConvertTo-Json -Depth 10 | Set-Content $mcpConfigPath -Encoding UTF8
+    # Write UTF8 without BOM (PS 5.1 compat)
+    [System.IO.File]::WriteAllText($mcpConfigPath, $raw, [System.Text.UTF8Encoding]::new($false))
 } else {
-    $config = [PSCustomObject]@{
-        mcpServers = [PSCustomObject]@{
-            detritus = [PSCustomObject]@{
-                command  = $binaryPathForJson
-                args     = @()
-                disabled = $false
-            }
-        }
-    }
-    $config | ConvertTo-Json -Depth 10 | Set-Content $mcpConfigPath -Encoding UTF8
+    $json = @"
+{
+  "mcpServers": {
+$detritusBlock
+  }
+}
+"@
+    [System.IO.File]::WriteAllText($mcpConfigPath, $json, [System.Text.UTF8Encoding]::new($false))
     Write-Host "Created $mcpConfigPath"
 }
 
+# Show config for verification
 Write-Host ""
 Write-Host "MCP config: $mcpConfigPath"
 Write-Host "Binary:     $binaryPath"
+Write-Host ""
+Write-Host "--- Config contents ---"
+Get-Content $mcpConfigPath
+Write-Host "--- End config ---"
 Write-Host ""
 Write-Host "Restart Windsurf (File > Exit, then reopen) to activate."
 Write-Host ""
