@@ -61,7 +61,7 @@ if (-not (Test-Path .windsurfrules)) { irm https://raw.githubusercontent.com/ben
 
 ### 4b. Create the setup workflow bootstrapper
 
-Create `TARGET/.windsurf/workflows/setup.md` if it doesn't exist:
+Create `TARGET/.windsurf/workflows/detritus/setup.md` if it doesn't exist:
 
 ```markdown
 ---
@@ -76,7 +76,9 @@ Read that URL and execute all the steps in the fetched document.
 
 ### 4c. Create workflow aliases from MCP
 
-Call `kb_list()` to get all available document names. For each document, create a workflow alias file at `TARGET/.windsurf/workflows/{name}.md` **only if it doesn't already exist**. Skip documents that start with `_` (e.g., `_truthseeker` — handled by `.windsurfrules`).
+Call `kb_list()` to get all available document names. For each document, create a workflow alias file at `TARGET/.windsurf/workflows/detritus/{name}.md` **only if it doesn't already exist**.
+
+For documents that start with `_` (e.g., `_truthseeker`), create the alias file **without** the underscore prefix (e.g., `truthseeker.md`). The `kb_get` call inside must still use the original name with the underscore.
 
 Each workflow alias file should follow this exact format:
 
@@ -90,6 +92,14 @@ Call kb_get(name="{name}") and follow the instructions in the returned document.
 
 **If `kb_list` is not available** (first-time install — MCP not loaded yet), skip this step and tell the user to restart Windsurf then re-run `/setup` to generate the workflow aliases.
 
+### 4d. Clean up old flat installations
+
+Previous versions of detritus installed workflow aliases directly into `TARGET/.windsurf/workflows/`. Check if any detritus-created alias files exist there (outside the `detritus/` subfolder).
+
+To identify detritus-created files: call `kb_list()` to get all document names. Any `.md` file in `TARGET/.windsurf/workflows/` whose name (without `.md`) matches a document name from `kb_list()` — or is `setup` — is a detritus-created file. Also check for `_truthseeker.md` and `truthseeker.md` (without the underscore).
+
+Delete only those files. Do **not** delete any other files or folders — those are user-created.
+
 ## Step 5: Restart Windsurf
 
 Tell the user to **fully close Windsurf** (File > Exit, not just close the window) and reopen it. After restart, the `kb_list`, `kb_get`, and `kb_search` tools will be available.
@@ -98,7 +108,7 @@ If this was a first-time install, remind the user to run `/setup` again after re
 
 ## Update
 
-To update to the latest version, re-run all steps. Step 4c will add workflow aliases for any new documents added since the last run.
+To update to the latest version, re-run all steps. Step 4c will add workflow aliases for any new documents added since the last run. Step 4d will clean up any leftover files from older flat installations.
 
 ## Troubleshooting
 

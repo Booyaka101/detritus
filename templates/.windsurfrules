@@ -17,5 +17,6 @@ General knowledge (ooo ecosystem, testing, Go patterns) is served by the **detri
 | Command | Description |
 |---------|-------------|
 | `/setup` | Install or update detritus MCP server |
+| `/truthseeker` | Foundational principles - ALWAYS ACTIVE |
 | `/plan` | Requirements analysis (delegates to MCP) |
 | `/scaffold-simple-service` | Scaffold new ooo+ko service (delegates to MCP) |
