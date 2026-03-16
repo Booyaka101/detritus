@@ -1,51 +1,50 @@
 ---
-description: nopog package - PostgreSQL key-value storage adapter for large-scale data
+description: nopog package - long-term historical data storage for the ooo ecosystem
 category: storage
 triggers:
   - nopog
-  - postgres
-  - postgresql
-  - large scale
-  - millions
-  - database
-  - sql
+  - history
+  - historical data
+  - long term storage
+  - millions of records
+  - time range query
   - GetN
   - GetNRange
-when: Large-scale data storage, millions of records, complex queries, when ooo in-memory isn't enough
+  - KeysRange
+  - analytics
+  - logs
+  - audit trail
+when: Long-term historical data, millions of records, time-range queries, analytics, audit trails — used alongside ooo, not as a replacement
 related:
   - ooo-package
 ---
 
-# nopog Package Reference
+# nopog — Long-Term Historical Data Storage
 
 **Repository:** https://github.com/benitogf/nopog
 
-Key-value abstraction using PostgreSQL JSON column type. Use for large-scale data storage when ooo's in-memory storage isn't suitable.
+Key-value storage for long-term historical data. Use alongside ooo when you need to retain and query millions of records over time.
 
 ---
 
 ## When to Use nopog
 
-- **Large datasets** - Millions of records
-- **Complex queries** - SQL-based filtering
-- **Persistence requirements** - PostgreSQL durability
-- **Bulk data** - Historical records, logs, analytics
+- **Historical records** — Game rounds, transactions, audit trails
+- **Analytics data** — Logs, metrics, event streams
+- **Time-range queries** — "Show me records from the last 24 hours"
+- **Large retention** — Millions of records that don't belong in real-time state
 
-**Note:** For real-time state/settings, use ooo. Combine both: ooo for real-time, nopog for bulk data.
+nopog is **not** a replacement for ooo. Use ooo for real-time state and settings. Use nopog alongside ooo for long-term data retention.
 
 ---
 
-## Installation
+## Setup
 
 ```bash
 go get github.com/benitogf/nopog
 ```
 
----
-
-## Database Setup
-
-Create a database and run the SQL script:
+nopog requires a running database instance. Initialize the schema:
 
 ```sql
 -- From: https://github.com/benitogf/nopog/blob/master/nopog.sql
@@ -129,8 +128,8 @@ Del(path string) error
 ```go
 storage := &nopog.Storage{
     Name:     "mydb",           // Database name
-    IP:       "localhost",      // PostgreSQL host
-    Port:     5432,             // PostgreSQL port (default: 5432)
+    IP:       "localhost",      // Database host
+    Port:     5432,             // Database port (default: 5432)
     User:     "postgres",       // Username
     Password: "password",       // Password
     SSLMode:  "disable",        // SSL mode
@@ -186,24 +185,26 @@ keys, err := storage.KeysRange("events/*", from, to, 1000)
 
 ---
 
-## Combining with ooo
+## Using with ooo
+
+The typical pattern: ooo manages real-time state, nopog stores historical data alongside it.
 
 ```go
 // Real-time state with ooo
 server := &ooo.Server{
-    Storage: oooStorage, // In-memory + LevelDB
+    Storage: oooStorage,
 }
 server.OpenFilter("game")
 server.OpenFilter("settings")
 
-// Bulk data with nopog
+// Historical data with nopog
 historyStorage := &nopog.Storage{
     Name: "history",
     IP:   "localhost",
 }
 historyStorage.Start()
 
-// Save historical data to nopog
+// Archive data after every write
 server.AfterWriteFilter("games/*", func(index string) {
     game, _ := ooo.Get[Game](server, index)
     data, _ := json.Marshal(game.Data)
@@ -215,7 +216,7 @@ server.AfterWriteFilter("games/*", func(index string) {
 
 ## Troubleshooting
 
-### PostgreSQL 10 Collation Error
+### Collation Error
 
 Error:
 ```
@@ -270,7 +271,7 @@ for _, key := range keys {
 
 ---
 
-## Related Packages
+## Related Docs
 
-- [ooo](https://github.com/benitogf/ooo) - Real-time state (use for small/medium data)
-- [ko](https://github.com/benitogf/ko) - LevelDB persistence (alternative to nopog)
+- `ooo-package` — Real-time state management (use for app state, settings, small/medium data)
+- `ooo-auth` — JWT authentication (if storing user-related history)

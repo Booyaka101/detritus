@@ -632,15 +632,98 @@ func (h *Handler) subscribeTo(itemID string) {
 
 ## Key Path Patterns
 
-- **Single object:** `settings`, `config`, `devices/123`
-- **Glob list:** `devices/*`, `games/*`, `users/*/posts/*`
-- **Multi-level glob:** `items/*/*` (matches `items/foo/bar`)
+### Path Types
 
-**Note:** Glob paths (`*`) require `ReadListFilter` or `OpenFilter`. Individual items within a glob path (e.g., `devices/123` when `devices/*` is filtered) are automatically accessible.
+- **Single object:** `settings`, `config`, `devices/123`
+- **Glob list:** `devices/*`, `games/*`
+- **Multi-glob (hierarchical):** `items/*/*/*`
+
+> **`*` matches exactly ONE path segment.** It does NOT match across `/` separators.
+
+### Multi-Glob Patterns
+
+Filters and pivot config support multiple `*` segments for hierarchical data.
+Each `*` represents one variable level in your path hierarchy.
+
+When you say `"items/{category}/{subcategory}/{itemID}"`, implement it as:
+
+```go
+// Register the filter with one * per variable segment
+server.OpenFilter("items/*/*/*")
+
+// Pivot sync config (same pattern)
+pivot.Config{
+    Keys: []pivot.Key{
+        {Path: "items/*/*/*"},
+    },
+}
+```
+
+**Writing:** POST to the parent glob, filling in the known segments:
+
+```go
+// Create an item under electronics/phones
+ooo.Push(server, "items/electronics/phones/*", item)
+// Stores at: items/electronics/phones/{autoID}
+
+// Create an item under electronics/laptops
+ooo.Push(server, "items/electronics/laptops/*", item)
+// Stores at: items/electronics/laptops/{autoID}
+```
+
+**Reading:** GET at the same depth you wrote to:
+
+```go
+// List all items under electronics/phones
+items, _ := ooo.GetList[Item](server, "items/electronics/phones/*")
+
+// Get a specific item by ID
+item, _ := ooo.Get[Item](server, "items/electronics/phones/abc123")
+```
+
+**WebSocket:** Subscribe at any concrete sub-path:
+
+```go
+client.SubscribeList(cfg, "items/electronics/phones/*", events)
+```
+
+> **Important:** You cannot read at intermediate depths. `items/electronics/*` will NOT return items stored at `items/electronics/phones/{id}` because the slash count differs. If you need reads at multiple depths, register separate filters for each level.
+
+### REST Key Validation
+
+REST API request keys are stricter than filter registration:
+
+| Context | Multi-glob | Example |
+|---------|------------|----------|
+| **Filter registration** (`OpenFilter`, etc.) | ✅ Allowed | `server.OpenFilter("items/*/*/*")` |
+| **Pivot config** (`pivot.Key.Path`) | ✅ Allowed | `{Path: "items/*/*/*"}` |
+| **REST request key** (HTTP POST/GET) | ❌ Single trailing `*` only | POST to `items/cat/sub/*` |
+| **`key.Match`** (internal matching) | ✅ Allowed | Matches `items/*/*/*` against `items/a/b/c` |
 
 ---
 
 ## Common Pitfalls
+
+### Confusing Filter Paths with REST Keys
+
+```go
+// ✅ Filter registration — multi-glob is valid
+server.OpenFilter("items/*/*/*")
+
+// ✅ Write — fill in known segments, glob the last
+ooo.Push(server, "items/electronics/phones/*", data)
+
+// ❌ WRONG — REST rejects multi-glob in request keys
+// POST to "items/*/*/*" will fail (ErrInvalidGlobCount)
+
+// ❌ WRONG — reading at wrong depth (slash count mismatch)
+ooo.GetList[T](server, "items/electronics/*")
+// This does NOT return items at items/electronics/phones/{id}
+// because * matches one segment, not two
+
+// ✅ CORRECT — read at the depth you wrote to
+ooo.GetList[T](server, "items/electronics/phones/*")
+```
 
 ### Glob Path Mismatches
 

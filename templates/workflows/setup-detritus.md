@@ -61,7 +61,7 @@ if (-not (Test-Path .windsurfrules)) { irm https://raw.githubusercontent.com/ben
 
 ### 4b. Create the setup workflow bootstrapper
 
-Create `TARGET/.windsurf/workflows/detritus/setup.md` if it doesn't exist:
+Create `TARGET/.windsurf/workflows/detritus/setup-detritus.md` if it doesn't exist:
 
 ```markdown
 ---
@@ -69,16 +69,21 @@ description: Install or update detritus MCP knowledge base server
 ---
 
 Fetch the latest setup instructions from:
-https://raw.githubusercontent.com/benitogf/detritus/main/templates/workflows/setup.md
+https://raw.githubusercontent.com/benitogf/detritus/main/templates/workflows/setup-detritus.md
 
 Read that URL and execute all the steps in the fetched document.
 ```
 
 ### 4c. Create workflow aliases from MCP
 
-Call `kb_list()` to get all available document names. For each document, create a workflow alias file at `TARGET/.windsurf/workflows/detritus/{name}.md` **only if it doesn't already exist**.
+Call `kb_list()` to get all available document names. For each document, create a workflow alias file at `TARGET/.windsurf/workflows/detritus/{alias}.md` **only if it doesn't already exist**.
 
-For documents that start with `_` (e.g., `_truthseeker`), create the alias file **without** the underscore prefix (e.g., `truthseeker.md`). The `kb_get` call inside must still use the original name with the underscore.
+Deriving the alias filename from the document name:
+
+- **Underscore prefix**: strip it (e.g., `_truthseeker` → `truthseeker.md`)
+- **Subdirectory path**: use only the last segment (e.g., `scaffold/create` → `create.md`)
+- **Both rules are additive** — apply all that match
+- The `kb_get` call inside must always use the **full original name** (e.g., `scaffold/create`, `_truthseeker`)
 
 Each workflow alias file should follow this exact format:
 
@@ -87,16 +92,18 @@ Each workflow alias file should follow this exact format:
 description: {description from kb_list}
 ---
 
-Call kb_get(name="{name}") and follow the instructions in the returned document.
+Call kb_get(name="{full_name}") and follow the instructions in the returned document.
 ```
 
-**If `kb_list` is not available** (first-time install — MCP not loaded yet), skip this step and tell the user to restart Windsurf then re-run `/setup` to generate the workflow aliases.
+**If `kb_list` is not available** (first-time install — MCP not loaded yet), skip this step and tell the user to restart Windsurf then re-run `/setup-detritus` to generate the workflow aliases.
 
 ### 4d. Clean up old flat installations
 
 Previous versions of detritus installed workflow aliases directly into `TARGET/.windsurf/workflows/`. Check if any detritus-created alias files exist there (outside the `detritus/` subfolder).
 
-To identify detritus-created files: call `kb_list()` to get all document names. Any `.md` file in `TARGET/.windsurf/workflows/` whose name (without `.md`) matches a document name from `kb_list()` — or is `setup` — is a detritus-created file. Also check for `_truthseeker.md` and `truthseeker.md` (without the underscore).
+To identify detritus-created files: call `kb_list()` to get all document names. Any `.md` file in `TARGET/.windsurf/workflows/` whose name (without `.md`) matches a document name or alias name from `kb_list()` — or is `setup` or `setup-detritus` — is a detritus-created file. Also check for these known old names: `_truthseeker.md`, `truthseeker.md`, `scaffold-simple-service.md`, `create-app.md`, `create-service.md`, `setup.md`.
+
+Also clean up old alias files inside `TARGET/.windsurf/workflows/detritus/` that no longer match any current document (e.g., `scaffold-simple-service.md`).
 
 Delete only those files. Do **not** delete any other files or folders — those are user-created.
 
@@ -104,7 +111,7 @@ Delete only those files. Do **not** delete any other files or folders — those 
 
 Tell the user to **fully close Windsurf** (File > Exit, not just close the window) and reopen it. After restart, the `kb_list`, `kb_get`, and `kb_search` tools will be available.
 
-If this was a first-time install, remind the user to run `/setup` again after restart to generate workflow aliases (Step 4c).
+If this was a first-time install, remind the user to run `/setup-detritus` again after restart to generate workflow aliases (Step 4c).
 
 ## Update
 

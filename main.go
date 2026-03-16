@@ -14,7 +14,7 @@ import (
 
 var version = "dev"
 
-//go:embed docs/*.md
+//go:embed docs
 var docsFS embed.FS
 
 func main() {
@@ -51,34 +51,36 @@ func main() {
 		Name:        "kb_list",
 		Description: "List all available knowledge base documents with descriptions",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, args ListArgs) (*mcp.CallToolResult, any, error) {
-		entries, err := fs.ReadDir(docsFS, "docs")
-		if err != nil {
-			return errResult("failed to read docs: " + err.Error()), nil, nil
-		}
 		var b strings.Builder
-		for _, entry := range entries {
-			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
-				continue
+		err := fs.WalkDir(docsFS, "docs", func(path string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() || !strings.HasSuffix(path, ".md") {
+				return nil
 			}
-			name := strings.TrimSuffix(entry.Name(), ".md")
-			content, _ := fs.ReadFile(docsFS, "docs/"+entry.Name())
+			name := strings.TrimSuffix(strings.TrimPrefix(path, "docs/"), ".md")
+			content, _ := fs.ReadFile(docsFS, path)
 			desc := extractDescription(string(content))
 			fmt.Fprintf(&b, "- **%s**: %s\n", name, desc)
+			return nil
+		})
+		if err != nil {
+			return errResult("failed to read docs: " + err.Error()), nil, nil
 		}
 		return textResult(b.String()), nil, nil
 	})
 
 	type GetArgs struct {
-		Name string `json:"name" jsonschema:"Document name without .md extension (e.g. ooo-package, testing-go-backend-async)"`
+		Name string `json:"name" jsonschema:"Document name without .md extension (e.g. ooo-package, scaffold/create)"`
 	}
 	mcp.AddTool(server, &mcp.Tool{
 		Name: "kb_get",
 		Description: "Get full knowledge document by name. Available documents and trigger keywords:\n" +
+			"SCAFFOLD: scaffold/create (create app, new app, build app, make app, web app, new project, create project, new service, create service, " +
+			"scaffold, build me, make me, full-stack, frontend, backend, react app, desktop app)\n" +
 			"CORE: ooo-package (ooo.Server, filters: ReadObjectFilter/ReadListFilter/WriteFilter/AfterWriteFilter/DeleteFilter/OpenFilter/LimitFilter/NoopObjectFilter/NoopListFilter/NoopFilter, " +
 			"CRUD: ooo.Get/ooo.Set/ooo.Push/ooo.Delete/ooo.Patch, meta.Object, WebSocket client.Subscribe/client.SubscribeList/SubscribeEvents/SubscribeListEvents, " +
-			"custom server.Endpoint/EndpointConfig, remote io.RemoteGet/io.RemoteSet/io.RemotePush/io.RemoteDelete/io.RemotePatch/RemoteConfig, REST API, glob paths, storage.Database)\n" +
-			"STORAGE: ooo-ko (LevelDB, ko.Storage, ko.EmbeddedStorage, storage.LayeredConfig, storage.NewMemoryLayer, storage.WatchStorageNoop, layered storage, db path) | " +
-			"ooo-nopog (PostgreSQL, nopog.Storage, GetN, GetNRange, KeysRange, millions of records, bulk data, history, SQL)\n" +
+			"custom server.Endpoint/EndpointConfig, remote io.RemoteGet/io.RemoteSet/io.RemotePush/io.RemoteDelete/io.RemotePatch/RemoteConfig, REST API, glob paths, " +
+			"storage.Database, ko.EmbeddedStorage, storage.LayeredConfig, storage.NewMemoryLayer, storage.WatchStorageNoop, layered storage)\n" +
+			"HISTORY: ooo-nopog (nopog.Storage, long-term historical data, millions of records, time-range queries, GetN, GetNRange, KeysRange, analytics, logs, audit trail)\n" +
 			"SYNC: ooo-pivot (clustering, distributed, AP system, multi-instance, pivot.Config, pivot.Setup, pivot.GetInstance, pivot.Key, ClusterURL, NodesKey, leader/follower, node discovery, Attach)\n" +
 			"AUTH: ooo-auth (JWT, github.com/benitogf/auth, auth.New, auth.NewJwtStore, tokenAuth.Verify/Router, /register, /authorize, /verify, Audit middleware)\n" +
 			"FRONTEND: ooo-client-js (JavaScript, React, npm, WebSocket client, ooo-client, subscribe, onmessage, publish, unpublish, JSON Patch, TypeScript, useOoo hook, HTTP fallback)\n" +
@@ -88,8 +90,7 @@ func main() {
 			"testing-go-backend-e2e (end-to-end, lifecycle, state transitions, phase pattern, consolidated test, ordering)\n" +
 			"GO: go-modern (Go 1.22+/1.24+, gopls modernize -fix, for range n, any, t.Context(), b.Loop(), slices, maps, clear, cmp.Or, errors.Join)\n" +
 			"PRINCIPLES: _truthseeker (pushback, evidence, question assumptions, prove before acting, radical honesty, intellectual humility, confirmation bias)\n" +
-			"WORKFLOW: plan (requirements analysis, feedback, design, specification, implementation plan, insights, questions) | " +
-			"scaffold-simple-service (new service, create service, scaffold, ooo+ko template, dockerfile, router, startup)",
+			"WORKFLOW: plan (requirements analysis, feedback, design, specification, implementation plan, insights, questions)",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, args GetArgs) (*mcp.CallToolResult, any, error) {
 		content, err := fs.ReadFile(docsFS, "docs/"+args.Name+".md")
 		if err != nil {
@@ -106,21 +107,17 @@ func main() {
 		Description: "Search across all ooo ecosystem knowledge base documents for a specific topic, pattern, or API name. Returns matching lines with context.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, args SearchArgs) (*mcp.CallToolResult, any, error) {
 		queryLower := strings.ToLower(args.Query)
-		entries, err := fs.ReadDir(docsFS, "docs")
-		if err != nil {
-			return errResult("failed to read docs: " + err.Error()), nil, nil
-		}
 		var b strings.Builder
-		for _, entry := range entries {
-			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
-				continue
+		err := fs.WalkDir(docsFS, "docs", func(path string, d fs.DirEntry, walkErr error) error {
+			if walkErr != nil || d.IsDir() || !strings.HasSuffix(path, ".md") {
+				return nil
 			}
-			content, _ := fs.ReadFile(docsFS, "docs/"+entry.Name())
+			content, _ := fs.ReadFile(docsFS, path)
 			contentStr := string(content)
 			if !strings.Contains(strings.ToLower(contentStr), queryLower) {
-				continue
+				return nil
 			}
-			name := strings.TrimSuffix(entry.Name(), ".md")
+			name := strings.TrimSuffix(strings.TrimPrefix(path, "docs/"), ".md")
 			lines := strings.Split(contentStr, "\n")
 			var matches []string
 			for i, line := range lines {
@@ -137,11 +134,44 @@ func main() {
 				fmt.Fprintf(&b, "  ... and %d more matches\n", len(matches)-10)
 			}
 			b.WriteString("\n")
+			return nil
+		})
+		if err != nil {
+			return errResult("failed to search docs: " + err.Error()), nil, nil
 		}
 		if b.Len() == 0 {
 			return textResult("No results found for: " + args.Query), nil, nil
 		}
 		return textResult(b.String()), nil, nil
+	})
+
+	var resourceSummary strings.Builder
+	resourceSummary.WriteString("# ooo Knowledge Base\n\n")
+	resourceSummary.WriteString("Available documents and tools: kb_get(name), kb_list(), kb_search(query)\n\n")
+	_ = fs.WalkDir(docsFS, "docs", func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".md") {
+			return nil
+		}
+		name := strings.TrimSuffix(strings.TrimPrefix(path, "docs/"), ".md")
+		content, _ := fs.ReadFile(docsFS, path)
+		desc := extractDescription(string(content))
+		fmt.Fprintf(&resourceSummary, "- **%s**: %s\n", name, desc)
+		return nil
+	})
+
+	server.AddResource(&mcp.Resource{
+		URI:         "mcp://detritus",
+		Name:        "ooo-knowledge-base",
+		Description: "Summary of all available ooo ecosystem knowledge base documents and tools",
+		MIMEType:    "text/markdown",
+	}, func(_ context.Context, _ *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
+		return &mcp.ReadResourceResult{
+			Contents: []*mcp.ResourceContents{{
+				URI:      "mcp://detritus",
+				MIMEType: "text/markdown",
+				Text:     resourceSummary.String(),
+			}},
+		}, nil
 	})
 
 	if err := server.Run(context.Background(), &mcp.StdioTransport{}); err != nil {

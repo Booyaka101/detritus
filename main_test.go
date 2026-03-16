@@ -3,6 +3,7 @@ package main
 import (
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -59,7 +60,19 @@ func TestMCPServer(t *testing.T) {
 	if len(listText) == 0 {
 		t.Fatal("kb_list returned empty")
 	}
-	t.Log("kb_list result length:", len(listText))
+	t.Log("kb_list output:\n" + listText)
+
+	// Verify subdirectory doc appears in kb_list
+	if !contains(listText, "scaffold/create") {
+		t.Fatal("kb_list missing scaffold/create")
+	}
+
+	// Verify deleted docs are gone from kb_list
+	for _, deleted := range []string{"ooo-ko", "scaffold-simple-service"} {
+		if contains(listText, deleted) {
+			t.Fatalf("kb_list still contains deleted doc: %s", deleted)
+		}
+	}
 
 	// Test: kb_get with valid doc
 	getResult, err := session.CallTool(ctx, &mcp.CallToolParams{
@@ -77,6 +90,37 @@ func TestMCPServer(t *testing.T) {
 		t.Fatal("kb_get ooo-package content too short")
 	}
 	t.Log("kb_get ooo-package length:", len(getText))
+
+	// Test: kb_get with subdirectory doc
+	scaffoldResult, err := session.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "kb_get",
+		Arguments: map[string]any{"name": "scaffold/create"},
+	})
+	if err != nil {
+		t.Fatal("kb_get scaffold/create:", err)
+	}
+	if scaffoldResult.IsError {
+		t.Fatal("kb_get scaffold/create returned error")
+	}
+	scaffoldText := scaffoldResult.Content[0].(*mcp.TextContent).Text
+	if !contains(scaffoldText, "Create a New Project") {
+		t.Fatal("scaffold/create missing expected content")
+	}
+	t.Log("kb_get scaffold/create length:", len(scaffoldText))
+
+	// Test: kb_get with deleted docs returns error
+	for _, deleted := range []string{"ooo-ko", "scaffold-simple-service"} {
+		delResult, err := session.CallTool(ctx, &mcp.CallToolParams{
+			Name:      "kb_get",
+			Arguments: map[string]any{"name": deleted},
+		})
+		if err != nil {
+			t.Fatalf("kb_get %s: %v", deleted, err)
+		}
+		if !delResult.IsError {
+			t.Fatalf("expected error for deleted doc %s", deleted)
+		}
+	}
 
 	// Test: kb_get with invalid doc
 	notFoundResult, err := session.CallTool(ctx, &mcp.CallToolParams{
@@ -119,4 +163,21 @@ func TestMCPServer(t *testing.T) {
 	if noText != "No results found for: xyznonexistent123" {
 		t.Fatalf("unexpected no-result text: %s", noText)
 	}
+
+	// Test: kb_search finds content in subdirectory docs
+	scaffoldSearch, err := session.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "kb_search",
+		Arguments: map[string]any{"query": "INTERACTIVE WORKFLOW"},
+	})
+	if err != nil {
+		t.Fatal("kb_search scaffold:", err)
+	}
+	scaffoldSearchText := scaffoldSearch.Content[0].(*mcp.TextContent).Text
+	if !contains(scaffoldSearchText, "scaffold/create") {
+		t.Fatal("kb_search didn't find scaffold/create for 'INTERACTIVE WORKFLOW'")
+	}
+}
+
+func contains(s, substr string) bool {
+	return len(s) > 0 && len(substr) > 0 && strings.Contains(s, substr)
 }
