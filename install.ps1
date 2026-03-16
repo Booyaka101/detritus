@@ -34,6 +34,14 @@ Invoke-WebRequest -Uri $url -OutFile $tmpZip
 if (Test-Path $tmpExtract) { Remove-Item $tmpExtract -Recurse -Force }
 Expand-Archive -Path $tmpZip -DestinationPath $tmpExtract
 
+# Stop running detritus process (Windows locks running executables)
+$running = Get-Process -Name $binary -ErrorAction SilentlyContinue
+if ($running) {
+    Write-Host "Stopping running detritus process..."
+    $running | Stop-Process -Force
+    Start-Sleep -Milliseconds 500
+}
+
 # Install
 Copy-Item "$tmpExtract\$binary.exe" "$installDir\$binary.exe" -Force
 

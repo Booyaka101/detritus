@@ -62,8 +62,10 @@ else
   tar -xzf "${TMP}/archive.tar.gz" -C "$TMP"
 fi
 
-# Install
+# Install (Windows locks running executables, kill first)
 if [ "$OS" = "windows" ]; then
+  taskkill //F //IM "${BINARY_NAME}" 2>/dev/null || true
+  sleep 1
   cp "${TMP}/${BINARY_NAME}" "${INSTALL_DIR}/${BINARY_NAME}"
 else
   if [ -w "$INSTALL_DIR" ]; then
