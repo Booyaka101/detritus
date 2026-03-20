@@ -2,7 +2,7 @@
 
 ## First-Time Setup
 
-This project uses the **detritus MCP server** for knowledge base access. If the `kb_get`, `kb_list`, `kb_search` tools are not available, run the `/setup` workflow to install it.
+This project uses the **detritus MCP server** for knowledge base access. If the `kb_get`, `kb_list`, `kb_search` tools are not available, run the `/setup-detritus` workflow to install it.
 
 ## Foundational Principles
 
