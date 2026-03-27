@@ -12,9 +12,9 @@ triggers:
   - coverage
 when: Structuring tests, deciding between many small tests vs one comprehensive test, testing state machines
 related:
-  - testing
-  - testing-go-backend-async
-  - testing-go-backend-mock
+  - testing/index
+  - testing/go-backend-async
+  - testing/go-backend-mock
 ---
 
 # E2E Testing Patterns
@@ -332,5 +332,5 @@ require.Equal(t, "msg2", messages[1].Payload)
 ## Related Workflows
 
 - `/testing` - Testing workflow index
-- `/testing-go-backend-async` - WaitGroup patterns for async synchronization
-- `/testing-go-backend-mock` - Minimal mocking at boundaries
+- `/testing-go-backend-async` (`testing/go-backend-async`) - WaitGroup patterns for async synchronization
+- `/testing-go-backend-mock` (`testing/go-backend-mock`) - Minimal mocking at boundaries

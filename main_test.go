@@ -77,7 +77,7 @@ func TestMCPServer(t *testing.T) {
 	// Test: kb_get with valid doc
 	getResult, err := session.CallTool(ctx, &mcp.CallToolParams{
 		Name:      "kb_get",
-		Arguments: map[string]any{"name": "ooo-package"},
+		Arguments: map[string]any{"name": "ooo/package"},
 	})
 	if err != nil {
 		t.Fatal("kb_get:", err)
@@ -87,9 +87,9 @@ func TestMCPServer(t *testing.T) {
 	}
 	getText := getResult.Content[0].(*mcp.TextContent).Text
 	if len(getText) < 100 {
-		t.Fatal("kb_get ooo-package content too short")
+		t.Fatal("kb_get ooo/package content too short")
 	}
-	t.Log("kb_get ooo-package length:", len(getText))
+	t.Log("kb_get ooo/package length:", len(getText))
 
 	// Test: kb_get with subdirectory doc
 	scaffoldResult, err := session.CallTool(ctx, &mcp.CallToolParams{
@@ -175,6 +175,51 @@ func TestMCPServer(t *testing.T) {
 	scaffoldSearchText := scaffoldSearch.Content[0].(*mcp.TextContent).Text
 	if !contains(scaffoldSearchText, "scaffold/create") {
 		t.Fatal("kb_search didn't find scaffold/create for 'INTERACTIVE WORKFLOW'")
+	}
+}
+
+func TestListFlag(t *testing.T) {
+	binPath := filepath.Join(t.TempDir(), "ooo-kb")
+	build := exec.Command("go", "build", "-o", binPath, ".")
+	build.Dir = "."
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build failed: %v\n%s", err, out)
+	}
+
+	out, err := exec.Command(binPath, "--list").Output()
+	if err != nil {
+		t.Fatal("--list failed:", err)
+	}
+
+	output := string(out)
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+	if len(lines) == 0 {
+		t.Fatal("--list returned no lines")
+	}
+
+	seen := map[string]string{}
+	for _, line := range lines {
+		parts := strings.SplitN(line, "\t", 2)
+		if len(parts) != 2 {
+			t.Fatalf("bad --list line (expected name<TAB>description): %q", line)
+		}
+		name, desc := parts[0], parts[1]
+		if name == "" || desc == "" {
+			t.Fatalf("empty name or description in line: %q", line)
+		}
+		seen[name] = desc
+	}
+
+	for _, required := range []string{"ooo/package", "scaffold/create", "meta/grow", "meta/truthseeker", "plan/analyze", "plan/diagrams", "plan/export", "patterns/async-events"} {
+		if _, ok := seen[required]; !ok {
+			t.Errorf("--list missing required doc: %s", required)
+		}
+	}
+
+	for _, deleted := range []string{"ooo-ko", "scaffold-simple-service", "ooo-package", "grow", "truthseeker", "testing", "async-events"} {
+		if _, ok := seen[deleted]; ok {
+			t.Errorf("--list still contains deleted doc: %s", deleted)
+		}
 	}
 }
 

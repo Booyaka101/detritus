@@ -6,11 +6,11 @@ MCP (Model Context Protocol) knowledge base server. Exposes coding knowledge doc
 
 Paste this into Windsurf Cascade:
 
-> Follow the setup instructions at https://raw.githubusercontent.com/benitogf/detritus/main/templates/workflows/setup.md
+> Follow the setup instructions at https://raw.githubusercontent.com/benitogf/detritus/main/templates/workflows/setup-detritus.md
 
 This handles everything: binary install, MCP config, and project workflow files. In multi-root workspaces, it will ask which project should receive the workflow files.
 
-To update, paste the same prompt again or run `/setup` if already installed.
+To update, paste the same prompt again or run `/setup-detritus` if already installed.
 
 ## Manual Install
 

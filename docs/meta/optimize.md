@@ -11,8 +11,8 @@ triggers:
   - detection efficiency
 when: User invokes /optimize to improve how effectively the agent discovers and applies KB guidance
 related:
-  - grow
-  - truthseeker
+  - meta/grow
+  - meta/truthseeker
 ---
 
 # /optimize — KB Retrieval Optimization
@@ -54,7 +54,7 @@ Every doc MUST have:
 ```yaml
 ---
 description: [one-line, keyword-rich]
-category: [core|storage|sync|auth|frontend|testing|patterns|principles|meta]
+category: [core|storage|sync|auth|frontend|testing|patterns|principles|meta|planning|scaffold]
 triggers: [list of keywords/phrases that should cause this doc to be consulted]
 when: [one sentence: under what task conditions this doc applies]
 related: [list of other doc names]

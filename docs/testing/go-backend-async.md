@@ -16,10 +16,10 @@ triggers:
   - polling
 when: Writing tests with async operations, WaitGroup patterns, subscription tests, fixing flaky tests
 related:
-  - testing
-  - testing-go-backend-mock
-  - testing-go-backend-e2e
-  - ooo-package
+  - testing/index
+  - testing/go-backend-mock
+  - testing/go-backend-e2e
+  - ooo/package
 ---
 
 # Async Testing Patterns
@@ -287,5 +287,5 @@ If any answer is "no", you haven't proven the behavior yet - add the logs.
 ## Related Workflows
 
 - `/testing` - Testing workflow index
-- `/testing-go-backend-mock` - What and how to mock
-- `/testing-go-backend-e2e` - Consolidated E2E test patterns
+- `/testing-go-backend-mock` (`testing/go-backend-mock`) - What and how to mock
+- `/testing-go-backend-e2e` (`testing/go-backend-e2e`) - Consolidated E2E test patterns

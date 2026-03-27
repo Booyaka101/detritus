@@ -9,9 +9,18 @@ triggers:
   - gopls
   - interface{}
   - any
+  - t.Context
+  - b.Loop
+  - slices
+  - maps
+  - clear
+  - cmp.Or
+  - errors.Join
+  - for range
 when: After editing Go files, run gopls modernize -fix to auto-apply modern patterns
 related:
-  - testing-go-backend-async
+  - testing/go-backend-async
+  - patterns/coding-style
 ---
 
 # Modern Go Patterns

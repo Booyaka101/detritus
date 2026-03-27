@@ -12,9 +12,16 @@ triggers:
   - subscribe
   - onMessage
   - TypeScript
+  - useSubscribe
+  - usePublish
+  - useOoo
+  - publish
+  - unpublish
+  - JSON Patch
 when: Frontend integration, React apps, JavaScript WebSocket client, browser-side subscriptions
 related:
-  - ooo-package
+  - ooo/package
+  - ooo/auth
 ---
 
 # ooo-client Package Reference

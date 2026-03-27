@@ -14,8 +14,8 @@ triggers:
   - event ordering
 when: Working with async events, callbacks, subscriptions, event-driven architectures, or debugging race conditions
 related:
-  - testing-go-backend-async
-  - truthseeker
+  - testing/go-backend-async
+  - meta/truthseeker
 ---
 
 # Async Events: General Principles
@@ -195,5 +195,5 @@ When an entity moves through multiple async states (connecting → connected →
 
 ## Related
 
-- `testing-go-backend-async` — Go-specific implementation of these principles using `sync.WaitGroup`
-- `truthseeker` — "Prove don't assume" as a foundational principle
+- `testing/go-backend-async` — Go-specific implementation of these principles using `sync.WaitGroup`
+- `meta/truthseeker` — "Prove don't assume" as a foundational principle

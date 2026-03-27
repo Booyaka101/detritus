@@ -7,10 +7,15 @@ triggers:
   - jwt auth
   - register endpoint
   - /register
+  - /authorize
   - /verify
+  - token
+  - tokenAuth
+  - Bearer
 when: Simple JWT auth, basic token auth without policies
 related:
-  - ooo-package
+  - ooo/package
+  - ooo/client-js
 ---
 
 # Simple Auth (`github.com/benitogf/auth`)
@@ -210,4 +215,4 @@ tokenAuth.Router(server, authURL)
 
 ## Related
 
-- `/ooo-package` - Core ooo server
+- `ooo/package` - Core ooo server

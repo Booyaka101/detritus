@@ -8,9 +8,10 @@ triggers:
   - how to test
 when: Starting to write tests, deciding testing approach
 related:
-  - testing-go-backend-mock
-  - testing-go-backend-async
-  - testing-go-backend-e2e
+  - testing/go-backend-mock
+  - testing/go-backend-async
+  - testing/go-backend-e2e
+  - patterns/async-events
 ---
 
 # Testing Workflows Index
@@ -122,6 +123,6 @@ func TestComponentE2E(t *testing.T) {
 
 ## See Also
 
-- `/testing-go-backend-mock` - What and how to mock
-- `/testing-go-backend-async` - WaitGroup synchronization patterns
-- `/testing-go-backend-e2e` - E2E test structure and phases
+- `/testing-go-backend-mock` (`testing/go-backend-mock`) - What and how to mock
+- `/testing-go-backend-async` (`testing/go-backend-async`) - WaitGroup synchronization patterns
+- `/testing-go-backend-e2e` (`testing/go-backend-e2e`) - E2E test structure and phases

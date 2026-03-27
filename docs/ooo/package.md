@@ -6,25 +6,41 @@ triggers:
   - server setup
   - filters
   - ReadObjectFilter
+  - ReadListFilter
   - WriteFilter
   - AfterWriteFilter
+  - DeleteFilter
   - OpenFilter
   - LimitFilter
+  - LimitFilterConfig
+  - MaxAge
+  - MaxAgeFunc
+  - CleanupConfig
+  - retention
+  - time-based retention
   - ooo.Get
+  - ooo.GetList
   - ooo.Set
   - ooo.Push
   - ooo.Delete
+  - ooo.Patch
   - meta.Object
   - WebSocket
   - subscription
   - endpoint
   - CRUD
+  - NoopFilter
+  - NoopHook
+  - NoopNotify
+  - NoBroadcastKeys
+  - Static
+  - RemoteConfig
 when: Setting up ooo servers, adding filters, CRUD operations, WebSocket subscriptions, custom endpoints
 related:
-  - ooo-pivot
-  - ooo-auth
-  - ooo-nopog
-  - ooo-client-js
+  - ooo/pivot
+  - ooo/auth
+  - ooo/nopog
+  - ooo/client-js
 ---
 
 # ooo Package Reference
@@ -258,13 +274,26 @@ server.DeleteFilter("books/protected", func(key string) error {
 })
 ```
 
-### LimitFilter (Auto-Cleanup Old Entries)
+### LimitFilter (Count + Time Constraints)
+
+Supports count-based limits, time-based retention, or both combined. At least one constraint must be provided.
 
 ```go
-// Keep only the N most recent entries
+// Count-only: keep N most recent entries (auto-deletes oldest)
 server.LimitFilter("logs/*", ooo.LimitFilterConfig{
     Limit: 100,
     Order: ooo.OrderDesc, // Most recent first (default)
+})
+
+// Time-only: keep entries younger than MaxAge (retention policy)
+server.LimitFilter("events/*", ooo.LimitFilterConfig{
+    MaxAge: 24 * time.Hour,
+})
+
+// Combined: both constraints apply — stricter one wins
+server.LimitFilter("metrics/*", ooo.LimitFilterConfig{
+    Limit:  1000,
+    MaxAge: 7 * 24 * time.Hour,
 })
 
 // Dynamic limit based on runtime state
@@ -278,7 +307,34 @@ server.LimitFilter("games/*", ooo.LimitFilterConfig{
     },
     Order: ooo.OrderAsc, // Oldest first
 })
+
+// Dynamic max age from external config
+server.LimitFilter("audit/*", ooo.LimitFilterConfig{
+    MaxAgeFunc: func() time.Duration { return getRetentionPolicy() },
+})
+
+// With periodic background cleanup (runs even without new writes)
+server.LimitFilter("telemetry/*", ooo.LimitFilterConfig{
+    MaxAge: 30 * 24 * time.Hour,
+    Cleanup: ooo.CleanupConfig{
+        Enabled:  true,
+        Interval: 10 * time.Minute, // default: 10min, minimum: 1min
+    },
+})
 ```
+
+**LimitFilterConfig options:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `Limit` | `int` | Maximum number of entries |
+| `LimitFunc` | `func() int` | Dynamic count limit (evaluated on each read/write) |
+| `MaxAge` | `time.Duration` | Maximum age of entries |
+| `MaxAgeFunc` | `func() time.Duration` | Dynamic max age (evaluated on each read/write) |
+| `Order` | `Order` | `OrderDesc` (default) or `OrderAsc` |
+| `Cleanup` | `CleanupConfig` | `{Enabled: true, Interval: duration}` for background cleanup |
+| `Description` | `string` | Human-readable description for explorer UI |
+| `Schema` | `any` | JSON schema struct for UI display |
 
 ### Filter Configuration Options
 

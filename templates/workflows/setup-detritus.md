@@ -74,46 +74,78 @@ https://raw.githubusercontent.com/benitogf/detritus/main/templates/workflows/set
 Read that URL and execute all the steps in the fetched document.
 ```
 
-### 4c. Create workflow aliases from MCP
+### 4c. Create workflow aliases from the installed binary
 
-Call `kb_list()` to get all available document names. For each document, create a workflow alias file at `TARGET/.windsurf/workflows/detritus/{alias}.md` **only if it doesn't already exist**.
+Run `detritus --list` to get all available document names and descriptions directly from the **on-disk binary**. This bypasses the running MCP server process, which may still be serving stale data from a previous version.
+
+- **Linux/macOS**: `detritus --list`
+- **Windows (PowerShell)**: `& "$env:LOCALAPPDATA\detritus\detritus.exe" --list`
+
+The output is tab-separated: `name<TAB>description`, one document per line. Subdirectory docs use `/` in the name (e.g., `scaffold/create`).
+
+For each document, create or update a workflow alias file at `TARGET/.windsurf/workflows/detritus/{alias}.md`:
+
+- **Create** the file if it doesn't exist
+- **Update** the description in the frontmatter if it differs from the binary's output
 
 Deriving the alias filename from the document name:
 
-- **Subdirectory path**: use only the last segment (e.g., `scaffold/create` → `create.md`)
-- The `kb_get` call inside must always use the **full original name** (e.g., `scaffold/create`)
+- **Single segment** (e.g., `diagrams`): use as-is → `diagrams.md`
+- **Two segments** where first is the group:
+  - If the last segment is `index`, use the group name (e.g., `testing/index` → `testing.md`)
+  - If the last segment is unique enough, use just the last segment (e.g., `scaffold/create` → `create.md`)
+  - If the last segment needs the group for context, join with `-` (e.g., `plan/analyze` → `plan.md`, `plan/export` → `plan-export.md`, `testing/go-backend-async` → `testing-go-backend-async.md`)
+- The `kb_get` call inside must always use the **full original name** (e.g., `scaffold/create`, `plan/analyze`)
+
+Special alias mappings (hardcoded):
+
+| Doc name | Alias file | Workflow command |
+|----------|-----------|-----------------|
+| `plan/analyze` | `plan.md` | `/plan` |
+| `plan/export` | `plan-export.md` | `/plan-export` |
+| `plan/diagrams` | `diagrams.md` | `/diagrams` |
+| `testing/index` | `testing.md` | `/testing` |
+| `scaffold/create` | `create.md` | `/create` |
+| `meta/truthseeker` | `truthseeker.md` | `/truthseeker` |
+| `meta/grow` | `grow.md` | `/grow` |
+| `meta/optimize` | `optimize.md` | `/optimize` |
+| `ooo/*` | `ooo-{name}.md` | `/ooo-{name}` |
+| `testing/go-backend-*` | `testing-go-backend-{name}.md` | `/testing-go-backend-{name}` |
+| `patterns/*` | `{name}.md` | `/{name}` |
 
 Each workflow alias file should follow this exact format:
 
 ```markdown
 ---
-description: {description from kb_list}
+description: {description from --list}
 ---
 
 Call kb_get(name="{full_name}") and follow the instructions in the returned document.
 ```
 
-**If `kb_list` is not available** (first-time install — MCP not loaded yet), skip this step and tell the user to restart Windsurf then re-run `/setup-detritus` to generate the workflow aliases.
+**If `detritus --list` fails** (binary too old — pre-v1.5.0), fall back to `kb_list()` via MCP. If MCP is also unavailable (first-time install), tell the user to restart Windsurf and re-run `/setup-detritus`.
 
 ### 4d. Clean up old flat installations
 
 Previous versions of detritus installed workflow aliases directly into `TARGET/.windsurf/workflows/`. Check if any detritus-created alias files exist there (outside the `detritus/` subfolder).
 
-To identify detritus-created files: call `kb_list()` to get all document names. Any `.md` file in `TARGET/.windsurf/workflows/` whose name (without `.md`) matches a document name or alias name from `kb_list()` — or is `setup` or `setup-detritus` — is a detritus-created file. Also check for these known old names: `_truthseeker.md`, `scaffold-simple-service.md`, `create-app.md`, `create-service.md`, `setup.md`.
+To identify detritus-created files: use the document names from `detritus --list` (or `kb_list()` as fallback). Any `.md` file in `TARGET/.windsurf/workflows/` whose name (without `.md`) matches a document name or alias name — or is `setup` or `setup-detritus` — is a detritus-created file. Also check for these known old names: `_truthseeker.md`, `scaffold-simple-service.md`, `create-app.md`, `create-service.md`, `setup.md`, `ooo-package.md`, `ooo-auth.md`, `ooo-client-js.md`, `ooo-nopog.md`, `ooo-pivot.md`, `async-events.md`, `go-modern.md`, `coding-style.md`, `state-management.md`.
 
-Also clean up old alias files inside `TARGET/.windsurf/workflows/detritus/` that no longer match any current document (e.g., `scaffold-simple-service.md`).
+Also clean up old alias files inside `TARGET/.windsurf/workflows/detritus/` that no longer match any current document. Known old flat names that were restructured into folders: `ooo-package.md`, `ooo-auth.md`, `ooo-client-js.md`, `ooo-nopog.md`, `ooo-pivot.md`, `testing-go-backend-async.md`, `testing-go-backend-e2e.md`, `testing-go-backend-mock.md`, `async-events.md`, `go-modern.md`, `coding-style.md`, `state-management.md`, `plan.md` (replaced by `plan.md` pointing to `plan/analyze`), `scaffold-simple-service.md`.
+
+**Important**: Some old alias filenames (e.g., `ooo-package.md`) match the new alias filenames (e.g., `ooo-package.md` for `ooo/package`). Only delete an alias if its `kb_get` call inside uses an old name that no longer exists. If the content already points to the correct new name, leave it.
 
 Delete only those files. Do **not** delete any other files or folders — those are user-created.
 
 ## Step 5: Restart Windsurf
 
-Tell the user to **fully close Windsurf** (File > Exit, not just close the window) and reopen it. After restart, the `kb_list`, `kb_get`, and `kb_search` tools will be available.
+Tell the user to **fully close Windsurf** (File > Exit, not just close the window) and reopen it. After restart, the `kb_list`, `kb_get`, and `kb_search` tools will serve the updated documents.
 
-If this was a first-time install, remind the user to run `/setup-detritus` again after restart to generate workflow aliases (Step 4c).
+No re-run is needed — workflow aliases were already created from the installed binary in Step 4c.
 
 ## Update
 
-To update to the latest version, re-run all steps. Step 4c will add workflow aliases for any new documents added since the last run. Step 4d will clean up any leftover files from older flat installations.
+To update to the latest version, re-run all steps. Since Step 4c reads directly from the installed binary (`detritus --list`), new documents are discovered immediately without needing the MCP server to restart first.
 
 ## Troubleshooting
 

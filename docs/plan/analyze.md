@@ -11,8 +11,10 @@ triggers:
   - feature request
 when: User provides requirements, feature request, or asks for analysis/planning before implementation
 related:
-  - grow
-  - truthseeker
+  - meta/grow
+  - meta/truthseeker
+  - plan/export
+  - plan/diagrams
 ---
 
 # Requirement Analysis Workflow
@@ -64,6 +66,17 @@ Before starting implementation, ask about:
 - Scope boundaries (what's explicitly out of scope)
 - Priority if multiple approaches exist
 
+## 6. Scope Completeness Checklist
+
+Before finalizing the plan, verify coverage of all downstream impacts:
+- **UI/Frontend**: Does the feature surface in any UI? Does the UI need updates?
+- **Documentation**: Are there docs, samples, or README files that reference the changed API?
+- **Downstream consumers**: Are there other repos or services that use this API?
+- **Samples**: Do existing samples need updating? Should a new sample be added?
+- **KB docs**: Does the detritus KB need updates for the changed package?
+
+Surface any gaps as explicit questions.
+
 ## Output Format
 
 ```
@@ -95,3 +108,7 @@ After outputting the analysis, plan, insights, and questions:
 1. Wait for the user to answer questions
 2. Only implement when the user explicitly says to proceed
 3. If no questions, still wait for user confirmation before implementing
+
+> **Common failure mode**: User answers your questions. This is NOT confirmation to implement.
+> Their answers refine the plan. You must still explicitly ask "Shall I proceed with implementation?"
+> and wait for a clear "yes" / "go ahead" / "implement it".

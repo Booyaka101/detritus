@@ -21,9 +21,9 @@ triggers:
   - desktop app
 when: User wants to create a new application or service from scratch
 related:
-  - ooo-package
-  - ooo-auth
-  - ooo-client-js
+  - ooo/package
+  - ooo/auth
+  - ooo/client-js
 ---
 
 # Create a New Project
@@ -75,7 +75,7 @@ Free text. Used as directory name and Go module name. Suggest a name based on wh
 
 Always use ko with layered storage (memory + embedded). This is the default for all new projects — zero external dependencies, works everywhere.
 
-If the user later describes needs for millions of historical records or long-term data retention, suggest adding nopog alongside ooo at that point. See the `ooo-nopog` doc. This is never a scaffolding question.
+If the user later describes needs for millions of historical records or long-term data retention, suggest adding nopog alongside ooo at that point. See the `ooo/nopog` doc. This is never a scaffolding question.
 
 ---
 
@@ -357,7 +357,7 @@ After the scaffold is generated, implement the user's actual requirements:
 
 ### Backend
 
-Use ooo filters to define your data model and access patterns. See the `ooo-package` doc for full reference.
+Use ooo filters to define your data model and access patterns. See the `ooo/package` doc for full reference.
 
 Common patterns:
 
@@ -404,7 +404,7 @@ err := ooo.Delete(server, "items/123")
 
 ### Frontend (if UI)
 
-The frontend uses `ooo-client` for real-time WebSocket subscriptions and `ky` for HTTP requests. See the `ooo-client-js` doc for full reference.
+The frontend uses `ooo-client` for real-time WebSocket subscriptions and `ky` for HTTP requests. See the `ooo/client-js` doc for full reference.
 
 The `useSubscribe` hook in `src/api.js` provides real-time data:
 
@@ -471,7 +471,7 @@ go build
 
 ## Related Docs
 
-- `ooo-package` — Server setup, filters, CRUD, WebSocket subscriptions
-- `ooo-auth` — JWT authentication details (if auth enabled)
-- `ooo-client-js` — JavaScript WebSocket client, React hooks
-- `ooo-nopog` — Long-term historical data storage (add later if needed)
+- `ooo/package` — Server setup, filters, CRUD, WebSocket subscriptions
+- `ooo/auth` — JWT authentication details (if auth enabled)
+- `ooo/client-js` — JavaScript WebSocket client, React hooks
+- `ooo/nopog` — Long-term historical data storage (add later if needed)

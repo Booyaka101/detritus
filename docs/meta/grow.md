@@ -14,9 +14,9 @@ triggers:
   - feedback loop
 when: User invokes /grow after correcting agent behavior, or wants to check last interaction against established KB guidance
 related:
-  - truthseeker
-  - optimize
-  - plan
+  - meta/truthseeker
+  - meta/optimize
+  - plan/analyze
 ---
 
 # /grow — Conversation-Driven KB Improvement

@@ -14,9 +14,9 @@ triggers:
   - boundary
 when: Deciding what to mock, how to structure mocks, avoiding over-mocking
 related:
-  - testing
-  - testing-go-backend-async
-  - testing-go-backend-e2e
+  - testing/index
+  - testing/go-backend-async
+  - testing/go-backend-e2e
 ---
 
 # Mock Testing Patterns
@@ -220,7 +220,7 @@ wg.Add(3)
 wg.Wait()  // deterministic sync
 ```
 
-See `/testing-go-backend-async` for full WaitGroup patterns.
+See `/testing-go-backend-async` (`testing/go-backend-async`) for full WaitGroup patterns.
 
 ---
 
@@ -238,5 +238,5 @@ See `/testing-go-backend-async` for full WaitGroup patterns.
 ## Related Workflows
 
 - `/testing` - Testing workflow index
-- `/testing-go-backend-async` - WaitGroup patterns for async synchronization
-- `/testing-go-backend-e2e` - Consolidated E2E test patterns
+- `/testing-go-backend-async` (`testing/go-backend-async`) - WaitGroup patterns for async synchronization
+- `/testing-go-backend-e2e` (`testing/go-backend-e2e`) - Consolidated E2E test patterns

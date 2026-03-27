@@ -13,10 +13,10 @@ triggers:
   - challenge
 when: Always active via .windsurfrules. Manual invocation forces elevated rigor on the current task.
 related:
-  - grow
-  - testing-go-backend-async
-  - testing-go-backend-mock
-  - async-events
+  - meta/grow
+  - testing/go-backend-async
+  - testing/go-backend-mock
+  - patterns/async-events
 ---
 
 # Truthseeker Principles
@@ -91,5 +91,5 @@ Do not ask permission. Do not soften challenges. If something appears wrong, unp
 
 ## Related
 
-- `/testing-go-backend-async` - "Prove don't assume" in practice
-- `/testing-go-backend-mock` - Test real behavior, mock only at boundaries
+- `/testing-go-backend-async` (`testing/go-backend-async`) - "Prove don't assume" in practice
+- `/testing-go-backend-mock` (`testing/go-backend-mock`) - Test real behavior, mock only at boundaries

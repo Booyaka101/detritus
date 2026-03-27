@@ -16,7 +16,7 @@ triggers:
   - audit trail
 when: Long-term historical data, millions of records, time-range queries, analytics, audit trails — used alongside ooo, not as a replacement
 related:
-  - ooo-package
+  - ooo/package
 ---
 
 # nopog — Long-Term Historical Data Storage
@@ -273,5 +273,5 @@ for _, key := range keys {
 
 ## Related Docs
 
-- `ooo-package` — Real-time state management (use for app state, settings, small/medium data)
-- `ooo-auth` — JWT authentication (if storing user-related history)
+- `ooo/package` — Real-time state management (use for app state, settings, small/medium data)
+- `ooo/auth` — JWT authentication (if storing user-related history)
