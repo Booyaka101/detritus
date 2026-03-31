@@ -8,6 +8,8 @@ Detect the user's OS and **shell** before proceeding. On Windows, check if the t
 
 ## Step 1: Install the binary
 
+The install script handles **both Windsurf and VS Code** automatically — it writes the MCP config and prompt files for both IDEs.
+
 ### Linux / macOS / Windows (Git Bash, WSL, MSYS2)
 
 // turbo
@@ -24,11 +26,35 @@ irm https://raw.githubusercontent.com/benitogf/detritus/main/install.ps1 | iex
 
 ## Step 2: Verify MCP config
 
+### Windsurf
+
 The install script automatically configures `~/.codeium/windsurf/mcp_config.json` (`~` = `%USERPROFILE%` on Windows).
 
 Read the config file and verify the `"detritus"` entry exists with the correct binary path:
 - **Linux/macOS**: `/usr/local/bin/detritus`
 - **Windows**: `C:/Users/USERNAME/AppData/Local/detritus/detritus.exe` (forward slashes)
+
+### VS Code
+
+The install script automatically configures the VS Code user-level MCP config. Read the file and verify the `"detritus"` entry exists:
+- **Linux (standard)**: `~/.config/Code/User/mcp.json`
+- **Linux (VS Code Server)**: `~/.vscode-server/data/User/mcp.json`
+- **macOS**: `~/Library/Application Support/Code/User/mcp.json`
+- **Windows**: `%APPDATA%\Code\User\mcp.json`
+
+The VS Code config format uses `"servers"` (not `"mcpServers"`):
+```json
+{
+  "servers": {
+    "detritus": {
+      "command": "/usr/local/bin/detritus",
+      "args": []
+    }
+  }
+}
+```
+
+Also verify prompt files were written to the `prompts/` subdirectory of the same user dir (e.g., `~/.config/Code/User/prompts/plan.prompt.md`). These are VS Code's slash commands — available in all workspaces without any per-repo setup.
 
 ## Step 3: Select target project
 
@@ -41,7 +67,9 @@ Let `TARGET` be the selected root for the steps below.
 
 ## Step 4: Install project files to TARGET
 
-### 4a. Download `.windsurfrules`
+### 4a. Download `.windsurfrules` and `copilot-instructions.md`
+
+#### Windsurf — `.windsurfrules`
 
 If `TARGET/.windsurfrules` does not exist, download it:
 
@@ -59,9 +87,30 @@ If `TARGET/.windsurfrules` does not exist, download it:
 if (-not (Test-Path .windsurfrules)) { irm https://raw.githubusercontent.com/benitogf/detritus/main/templates/.windsurfrules | Set-Content .windsurfrules -Encoding UTF8 }
 ```
 
-### 4b. Create the setup workflow bootstrapper
+#### VS Code — `.github/copilot-instructions.md`
 
-Create `TARGET/.windsurf/workflows/detritus/setup-detritus.md` if it doesn't exist:
+If `TARGET/.github/copilot-instructions.md` does not exist, download it:
+
+#### Linux / macOS / Windows (Git Bash, WSL, MSYS2)
+
+// turbo
+```bash
+mkdir -p .github && [ ! -f .github/copilot-instructions.md ] && curl -sSL https://raw.githubusercontent.com/benitogf/detritus/main/templates/copilot-instructions.md -o .github/copilot-instructions.md
+```
+
+#### Windows (PowerShell only)
+
+// turbo
+```powershell
+if (-not (Test-Path .github)) { New-Item -ItemType Directory .github | Out-Null }
+if (-not (Test-Path .github\copilot-instructions.md)) { irm https://raw.githubusercontent.com/benitogf/detritus/main/templates/copilot-instructions.md | Set-Content .github\copilot-instructions.md -Encoding UTF8 }
+```
+
+### 4b. Create the setup bootstrappers
+
+#### Windsurf — `TARGET/.windsurf/workflows/detritus/setup-detritus.md`
+
+Create if it doesn't exist:
 
 ```markdown
 ---
@@ -74,6 +123,10 @@ https://raw.githubusercontent.com/benitogf/detritus/main/templates/workflows/set
 Read that URL and execute all the steps in the fetched document.
 ```
 
+#### VS Code — note
+
+VS Code slash commands (`/plan`, `/testing`, etc.) are user-level prompt files written by the install script to `~/.config/Code/User/prompts/` (or the equivalent on your OS). They are **not** stored per-repo — they are available in all workspaces automatically. No bootstrapper file is needed in the project.
+
 ### 4c. Create workflow aliases from the installed binary
 
 Run `detritus --list` to get all available document names and descriptions directly from the **on-disk binary**. This bypasses the running MCP server process, which may still be serving stale data from a previous version.
@@ -83,12 +136,12 @@ Run `detritus --list` to get all available document names and descriptions direc
 
 The output is tab-separated: `name<TAB>description`, one document per line. Subdirectory docs use `/` in the name (e.g., `scaffold/create`).
 
-For each document, create or update a workflow alias file. Aliases are organized into **subfolders matching the doc group** (first path segment), mirroring the `docs/` layout in the detritus repo.
+#### Windsurf aliases
+
+For each document, create or update a workflow alias file in the **target project**. Aliases are organized into **subfolders matching the doc group** (first path segment), mirroring the `docs/` layout in the detritus repo.
 
 - **Create** the file if it doesn't exist
 - **Update** if the file exists but the description or the `kb_get(name="...")` call inside differs from the expected values
-
-#### Deriving the alias path from the document name
 
 The alias file path is: `TARGET/.windsurf/workflows/detritus/{group}/{alias}.md`
 
@@ -112,14 +165,14 @@ Alias filename rules:
 | `patterns/*` | `patterns/{name}.md` | `/{name}` |
 
 General rules:
-- **`ooo/*`**: prefix filename with `ooo-` to avoid ambiguous commands (e.g., `ooo/package` → `ooo/ooo-package.md` → `/ooo-package`)
+- **`ooo/*`**: prefix filename with `ooo-` (e.g., `ooo/package` → `ooo/ooo-package.md` → `/ooo-package`)
 - **`testing/go-backend-*`**: prefix filename with `testing-` (e.g., `testing/go-backend-async` → `testing/testing-go-backend-async.md`)
-- **`testing/index`**: use group name as filename (e.g., `testing/testing.md` → `/testing`)
-- **`plan/analyze`**: use group name as filename (e.g., `plan/plan.md` → `/plan`)
-- **All others**: use the last segment as filename (e.g., `meta/grow` → `meta/grow.md`, `patterns/coding-style` → `patterns/coding-style.md`)
-- The `kb_get` call inside must always use the **full original doc name** (e.g., `scaffold/create`, `plan/analyze`)
+- **`testing/index`**: use group name as filename (`testing/testing.md` → `/testing`)
+- **`plan/analyze`**: use group name as filename (`plan/plan.md` → `/plan`)
+- **All others**: use the last segment as filename
+- The `kb_get` call inside must always use the **full original doc name**
 
-Each workflow alias file should follow this exact format:
+Each Windsurf alias file format:
 
 ```markdown
 ---
@@ -129,7 +182,43 @@ description: {description from --list}
 Call kb_get(name="{full_name}") and follow the instructions in the returned document.
 ```
 
-**If `detritus --list` fails** (binary too old — pre-v1.5.0), fall back to `kb_list()` via MCP. If MCP is also unavailable (first-time install), tell the user to restart Windsurf and re-run `/setup-detritus`.
+#### VS Code user-level prompt files
+
+VS Code prompt files (slash commands) are user-level and were already written by the install script. However, to ensure they are up-to-date after a binary update, re-run the install script's VS Code section. The alias filename rules are the same as Windsurf above, but:
+
+- Files go to `~/.config/Code/User/prompts/` (Linux), `~/Library/Application Support/Code/User/prompts/` (macOS), or `%APPDATA%\Code\User\prompts\` (Windows) — **not** inside the project
+- Extension is `.prompt.md` instead of `.md`
+- Frontmatter includes `agent: agent` and `tools: ["detritus/*"]`
+
+Each VS Code prompt file format:
+
+```markdown
+---
+description: {description from --list}
+agent: agent
+tools: ["detritus/*"]
+---
+
+Call kb_get(name="{full_name}") and follow the instructions in the returned document.
+```
+
+To refresh VS Code prompt files without re-running the full install script, run the appropriate command for your OS/shell:
+
+**Linux / macOS / Windows (Git Bash, WSL, MSYS2)**
+
+// turbo
+```bash
+curl -sSL https://raw.githubusercontent.com/benitogf/detritus/main/install.sh | sh
+```
+
+**Windows (PowerShell)**
+
+// turbo
+```powershell
+irm https://raw.githubusercontent.com/benitogf/detritus/main/install.ps1 | iex
+```
+
+**If `detritus --list` fails** (binary too old — pre-v1.5.0), fall back to `kb_list()` via MCP. If MCP is also unavailable (first-time install), tell the user to restart their IDE and re-run `/setup-detritus`.
 
 ### 4d. Clean up old installations
 
@@ -151,11 +240,15 @@ After creating/updating aliases in Step 4c, check each subfolder under `detritus
 
 **Do not** delete any files or folders outside `detritus/` that are not in the known lists above — those are user-created.
 
-## Step 5: Restart Windsurf
+## Step 5: Restart IDEs
 
+### Windsurf
 Tell the user to **fully close Windsurf** (File > Exit, not just close the window) and reopen it. After restart, the `kb_list`, `kb_get`, and `kb_search` tools will serve the updated documents.
 
-No re-run is needed — workflow aliases were already created from the installed binary in Step 4c.
+### VS Code
+Tell the user to **reload the VS Code window**: press `Ctrl+Shift+P` (or `Cmd+Shift+P` on macOS) and run `Developer: Reload Window`. A full restart is not required — VS Code picks up the user-level MCP config and prompt files on reload.
+
+No re-run is needed — Windsurf aliases were created from the binary in Step 4c, and VS Code prompt files were written by the install script in Step 1.
 
 ## Update
 
@@ -178,14 +271,24 @@ This should print `detritus <version>`. If it outputs JSON-RPC or hangs, you hav
 
 ### MCP server not loading after restart
 
+#### Windsurf
 1. **Check the config path**: Must be `~/.codeium/windsurf/mcp_config.json` (on Windows: `%USERPROFILE%\.codeium\windsurf\mcp_config.json`)
 2. **Check the binary path in config**: Must use **forward slashes** even on Windows (e.g., `C:/Users/Name/AppData/Local/detritus/detritus.exe`)
 3. **Full restart required**: File > Exit (or Alt+F4), not just closing the window. On Windows, check Task Manager to ensure all Windsurf processes are stopped
 4. **Check MCP panel**: Settings (gear icon) > Cascade > MCP Servers — detritus should appear there
 5. **Verify config is valid JSON**: Open `mcp_config.json` in a text editor and check for syntax errors (trailing commas, missing quotes)
 
+#### VS Code
+1. **Check the config path**: `~/.config/Code/User/mcp.json` (Linux), `~/Library/Application Support/Code/User/mcp.json` (macOS), `%APPDATA%\Code\User\mcp.json` (Windows)
+2. **Config uses `"servers"` key** (not `"mcpServers"`): `{"servers": {"detritus": {"command": "...", "args": []}}}`
+3. **Reload window**: `Ctrl+Shift+P` > `Developer: Reload Window`
+4. **Trust prompt**: VS Code may ask you to trust the MCP server on first use — click Allow
+5. **Check MCP tools**: In Copilot Chat, click the tools icon — `kb_list`, `kb_get`, `kb_search` should appear under detritus
+6. **On Linux with VS Code Server**: The install script writes to both `~/.config/Code/User/` and `~/.vscode-server/data/User/` — check whichever one your VS Code instance uses
+
 ### Windows-specific issues
 
-- **Path must use forward slashes** in `mcp_config.json`: `C:/Users/...` not `C:\Users\...`
+- **Path must use forward slashes** in `mcp_config.json` (Windsurf): `C:/Users/...` not `C:\Users\...`
 - **Do not run the binary manually** — it communicates via stdio and will appear to hang. Use `--version` to test
 - **Antivirus may block**: Some antivirus software blocks unsigned executables. Add an exception for `%LOCALAPPDATA%\detritus\detritus.exe`
+- **VS Code on Windows**: The config is at `%APPDATA%\Code\User\mcp.json` (Roaming AppData, not Local)

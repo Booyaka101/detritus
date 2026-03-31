@@ -12,6 +12,19 @@ This handles everything: binary install, MCP config, and project workflow files.
 
 To update, paste the same prompt again or run `/setup-detritus` if already installed.
 
+## Quick Install (VS Code + Copilot)
+
+Paste this into VS Code Copilot Chat (agent mode):
+
+> Follow the setup instructions at https://raw.githubusercontent.com/benitogf/detritus/main/templates/workflows/setup-detritus.md
+
+The same setup workflow handles VS Code. The install script writes:
+- **User-level MCP config** (`~/.config/Code/User/mcp.json`) — detritus tools available in all workspaces
+- **User-level prompt files** (`~/.config/Code/User/prompts/`) — `/plan`, `/testing`, etc. available as slash commands in all workspaces without any per-repo setup
+- **`.github/copilot-instructions.md`** in the selected project — project context for Copilot
+
+Reload the VS Code window (`Ctrl+Shift+P` > `Developer: Reload Window`) after install.
+
 ## Manual Install
 
 ### Linux / macOS / Windows (Git Bash)
@@ -26,7 +39,11 @@ curl -sSL https://raw.githubusercontent.com/benitogf/detritus/main/install.sh | 
 irm https://raw.githubusercontent.com/benitogf/detritus/main/install.ps1 | iex
 ```
 
-The install script downloads the binary and configures `~/.codeium/windsurf/mcp_config.json` automatically. Restart Windsurf after install.
+The install script downloads the binary and configures both IDEs automatically:
+- **Windsurf**: `~/.codeium/windsurf/mcp_config.json`
+- **VS Code**: `~/.config/Code/User/mcp.json` + `~/.config/Code/User/prompts/*.prompt.md`
+
+Restart Windsurf and reload VS Code after install.
 
 ## Tools
 
@@ -86,11 +103,22 @@ On Windows:
 & "$env:LOCALAPPDATA\detritus\detritus.exe" --version
 ```
 
+### Windsurf
+
 If Windsurf doesn't load the MCP server after restart, check:
 1. Config path: `~/.codeium/windsurf/mcp_config.json`
 2. Binary path uses **forward slashes** (even on Windows)
 3. **Full restart** required (File > Exit, not just close window)
 4. On Windows, antivirus may block unsigned executables
+
+### VS Code
+
+If the MCP tools don't appear after reload, check:
+1. Config: `~/.config/Code/User/mcp.json` (Linux), `~/Library/Application Support/Code/User/mcp.json` (macOS), `%APPDATA%\Code\User\mcp.json` (Windows)
+2. Config uses **`"servers"`** key (not `"mcpServers"`)
+3. Run `Developer: Reload Window` from the Command Palette
+4. VS Code may show a trust prompt on first use — click Allow
+5. On Linux with VS Code Server, the install also writes to `~/.vscode-server/data/User/`
 
 ## Development
 

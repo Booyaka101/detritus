@@ -142,3 +142,100 @@ echo "MCP config: ${MCP_CONFIG}"
 echo "Binary:     ${INSTALL_DIR}/${BINARY_NAME}"
 echo ""
 echo "Restart Windsurf to activate."
+
+# Auto-configure VS Code
+# VS Code uses "servers" (not "mcpServers") in mcp.json
+# Prompt files are written to the user-level prompts dir — available in all workspaces
+
+# Alias name mapping for VS Code prompt files (mirrors setup-detritus.md logic)
+vscode_alias_for_doc() {
+  local name="$1"
+  local leaf="${name##*/}"
+  case "$name" in
+    plan/analyze)        echo "plan" ;;
+    testing/index)       echo "testing" ;;
+    testing/go-backend-*) echo "testing-${leaf}" ;;
+    ooo/*)               echo "ooo-${leaf}" ;;
+    *)                   echo "$leaf" ;;
+  esac
+}
+
+configure_vscode_dir() {
+  local VSCODE_DIR="$1"
+  if [ ! -d "$VSCODE_DIR" ]; then
+    return
+  fi
+
+  local VSCODE_MCP="${VSCODE_DIR}/mcp.json"
+  mkdir -p "$VSCODE_DIR"
+
+  # Write mcp.json
+  if [ -f "$VSCODE_MCP" ]; then
+    if command -v python3 >/dev/null 2>&1; then
+      python3 -c "
+import json, sys
+with open('$VSCODE_MCP', 'r') as f:
+    config = json.load(f)
+config.setdefault('servers', {})
+config['servers']['detritus'] = {'command': '$BINARY_PATH_JSON', 'args': []}
+with open('$VSCODE_MCP', 'w') as f:
+    json.dump(config, f, indent=2)
+print('Updated detritus in $VSCODE_MCP')
+"
+    else
+      echo "python3 not found, please add manually to ${VSCODE_MCP}:"
+      echo '  "detritus": { "command": "'${BINARY_PATH_JSON}'", "args": [] }'
+    fi
+  else
+    cat > "$VSCODE_MCP" <<EOF
+{
+  "servers": {
+    "detritus": {
+      "command": "${BINARY_PATH_JSON}",
+      "args": []
+    }
+  }
+}
+EOF
+    echo "Created ${VSCODE_MCP}"
+  fi
+
+  # Write user-level prompt files (slash commands available in all workspaces)
+  local PROMPTS_DIR="${VSCODE_DIR}/prompts"
+  mkdir -p "$PROMPTS_DIR"
+
+  while IFS='	' read -r name desc; do
+    [ -z "$name" ] && continue
+    local alias
+    alias=$(vscode_alias_for_doc "$name")
+    local file="${PROMPTS_DIR}/${alias}.prompt.md"
+    cat > "$file" <<EOF
+---
+description: ${desc}
+agent: agent
+tools: ["detritus/*"]
+---
+
+Call kb_get(name="${name}") and follow the instructions in the returned document.
+EOF
+  done << DOCLIST
+$("$BINARY_PATH" --list 2>/dev/null)
+DOCLIST
+
+  echo "VS Code config: ${VSCODE_MCP}"
+  echo "VS Code prompts: ${PROMPTS_DIR}/"
+}
+
+# Linux/macOS VS Code locations
+if [ "$OS" = "linux" ]; then
+  configure_vscode_dir "$HOME/.config/Code/User"
+  configure_vscode_dir "$HOME/.vscode-server/data/User"
+elif [ "$OS" = "darwin" ]; then
+  configure_vscode_dir "$HOME/Library/Application Support/Code/User"
+elif [ "$OS" = "windows" ]; then
+  WIN_APPDATA_CODE=$(cygpath -u "$APPDATA" 2>/dev/null || echo "$HOME/AppData/Roaming")
+  configure_vscode_dir "${WIN_APPDATA_CODE}/Code/User"
+fi
+
+echo ""
+echo "Reload VS Code window (Developer: Reload Window) to activate."

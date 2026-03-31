@@ -138,3 +138,76 @@ Write-Host ""
 Write-Host "Restart Windsurf (File > Exit, then reopen) to activate."
 Write-Host ""
 Write-Host "To verify after restart, ask Cascade: 'list available kb docs'"
+
+# Auto-configure VS Code
+# VS Code uses "servers" (not "mcpServers") in mcp.json
+# Prompt files go to user-level prompts dir — available in all workspaces
+
+function Configure-VSCodeDir {
+    param([string]$VsCodeDir)
+    if (-not (Test-Path $VsCodeDir)) { return }
+
+    $vscodeMcp = Join-Path $VsCodeDir "mcp.json"
+    $binaryPathJson = $binaryPath -replace '\\', '/'
+
+    # Write mcp.json
+    $detritusBlock = "    `"detritus`": {`n      `"command`": `"$binaryPathJson`",`n      `"args`": []`n    }"
+    if (Test-Path $vscodeMcp) {
+        $raw = Get-Content $vscodeMcp -Raw
+        if ($raw -match '"detritus"\s*:') {
+            $raw = [regex]::Replace($raw, '"detritus"\s*:\s*\{[^}]*\}', $detritusBlock.Trim())
+            Write-Host "Updated detritus in $vscodeMcp"
+        } elseif ($raw -match '"servers"\s*:\s*\{') {
+            $raw = [regex]::Replace($raw, '("servers"\s*:\s*\{)', "`$1`n$detritusBlock,")
+            Write-Host "Added detritus to $vscodeMcp"
+        } else {
+            $json = "{`n  `"servers`": {`n$detritusBlock`n  }`n}"
+            $raw = $json
+            Write-Host "Created servers with detritus in $vscodeMcp"
+        }
+        [System.IO.File]::WriteAllText($vscodeMcp, $raw, [System.Text.UTF8Encoding]::new($false))
+    } else {
+        $json = "{`n  `"servers`": {`n$detritusBlock`n  }`n}"
+        [System.IO.File]::WriteAllText($vscodeMcp, $json, [System.Text.UTF8Encoding]::new($false))
+        Write-Host "Created $vscodeMcp"
+    }
+
+    # Write user-level prompt files (slash commands available in all workspaces)
+    $promptsDir = Join-Path $VsCodeDir "prompts"
+    if (-not (Test-Path $promptsDir)) { New-Item -ItemType Directory -Path $promptsDir -Force | Out-Null }
+
+    # Get doc list from binary
+    $listOutput = & $binaryPath --list 2>$null
+    if ($listOutput) {
+        foreach ($line in $listOutput -split "`n") {
+            $line = $line.Trim()
+            if (-not $line) { continue }
+            $parts = $line -split "`t", 2
+            $name = $parts[0].Trim()
+            $desc = if ($parts.Count -gt 1) { $parts[1].Trim() } else { "" }
+            $group = $name -split "/" | Select-Object -First 1
+            $leaf  = $name -split "/" | Select-Object -Last 1
+
+            $alias = switch -Wildcard ($name) {
+                "plan/analyze"       { "plan" }
+                "testing/index"      { "testing" }
+                "testing/go-backend-*" { "testing-$leaf" }
+                "ooo/*"              { "ooo-$leaf" }
+                default              { $leaf }
+            }
+
+            $content = "---`ndescription: $desc`nagent: agent`ntools: [`"detritus/*`"]`n---`n`nCall kb_get(name=`"$name`") and follow the instructions in the returned document.`n"
+            $file = Join-Path $promptsDir "$alias.prompt.md"
+            [System.IO.File]::WriteAllText($file, $content, [System.Text.UTF8Encoding]::new($false))
+        }
+        Write-Host "VS Code prompts: $promptsDir\"
+    }
+
+    Write-Host "VS Code config:  $vscodeMcp"
+}
+
+$vsCodeUserDir = Join-Path $env:APPDATA "Code\User"
+Configure-VSCodeDir $vsCodeUserDir
+
+Write-Host ""
+Write-Host "Reload VS Code window (Ctrl+Shift+P > Developer: Reload Window) to activate."

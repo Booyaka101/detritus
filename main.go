@@ -52,7 +52,7 @@ func main() {
 			fmt.Println("  detritus --help       Print this help")
 			fmt.Println("")
 			fmt.Println("This server communicates via stdio using the Model Context Protocol.")
-			fmt.Println("It is not meant to be run interactively — Windsurf spawns it automatically.")
+			fmt.Println("It is not meant to be run interactively — Windsurf or VS Code spawns it automatically.")
 			return
 		default:
 			fmt.Fprintf(os.Stderr, "unknown flag: %s\nRun 'detritus --help' for usage.\n", os.Args[1])
