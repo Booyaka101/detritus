@@ -56,18 +56,22 @@ The VS Code config format uses `"servers"` (not `"mcpServers"`):
 
 Also verify prompt files were written to the `prompts/` subdirectory of the same user dir (e.g., `~/.config/Code/User/prompts/plan.prompt.md`). These are VS Code's slash commands — available in all workspaces without any per-repo setup.
 
-## Step 3: Select target project
+## Step 3: Windsurf-only project selection
 
-Check the workspace roots (available from IDE metadata). **Install project files only to the root the user selects.**
+If the user is setting up **Windsurf**, check the workspace roots (available from IDE metadata). **Install project files only to the root the user selects.**
+
+If the user is setting up **VS Code**, skip this step entirely. VS Code uses only the user-level MCP config and user-level prompt files written in Step 1.
 
 - **Single root**: use it directly, no prompt needed.
 - **Multiple roots**: list all workspace roots and ask the user which one should receive the MCP workflow files. Install to that root only.
 
-Let `TARGET` be the selected root for the steps below.
+Let `TARGET` be the selected root for the Windsurf-only steps below.
 
-## Step 4: Install project files to TARGET
+## Step 4: Windsurf-only project files
 
-### 4a. Download `.windsurfrules` and `copilot-instructions.md`
+Only do this step for **Windsurf**. Skip it for **VS Code**.
+
+### 4a. Download `.windsurfrules`
 
 #### Windsurf — `.windsurfrules`
 
@@ -85,25 +89,6 @@ If `TARGET/.windsurfrules` does not exist, download it:
 // turbo
 ```powershell
 if (-not (Test-Path .windsurfrules)) { irm https://raw.githubusercontent.com/benitogf/detritus/main/templates/.windsurfrules | Set-Content .windsurfrules -Encoding UTF8 }
-```
-
-#### VS Code — `.github/copilot-instructions.md`
-
-If `TARGET/.github/copilot-instructions.md` does not exist, download it:
-
-#### Linux / macOS / Windows (Git Bash, WSL, MSYS2)
-
-// turbo
-```bash
-mkdir -p .github && [ ! -f .github/copilot-instructions.md ] && curl -sSL https://raw.githubusercontent.com/benitogf/detritus/main/templates/copilot-instructions.md -o .github/copilot-instructions.md
-```
-
-#### Windows (PowerShell only)
-
-// turbo
-```powershell
-if (-not (Test-Path .github)) { New-Item -ItemType Directory .github | Out-Null }
-if (-not (Test-Path .github\copilot-instructions.md)) { irm https://raw.githubusercontent.com/benitogf/detritus/main/templates/copilot-instructions.md | Set-Content .github\copilot-instructions.md -Encoding UTF8 }
 ```
 
 ### 4b. Create the setup bootstrappers
@@ -184,7 +169,7 @@ Call kb_get(name="{full_name}") and follow the instructions in the returned docu
 
 #### VS Code user-level prompt files
 
-VS Code prompt files (slash commands) are user-level and were already written by the install script. However, to ensure they are up-to-date after a binary update, re-run the install script's VS Code section. The alias filename rules are the same as Windsurf above, but:
+VS Code prompt files (slash commands) are user-level and were already written by the install script. To ensure they are up-to-date after a binary update, re-run Step 1. The alias filename rules are the same as Windsurf above, but:
 
 - Files go to `~/.config/Code/User/prompts/` (Linux), `~/Library/Application Support/Code/User/prompts/` (macOS), or `%APPDATA%\Code\User\prompts\` (Windows) — **not** inside the project
 - Extension is `.prompt.md` instead of `.md`
@@ -249,6 +234,16 @@ Tell the user to **fully close Windsurf** (File > Exit, not just close the windo
 Tell the user to **reload the VS Code window**: press `Ctrl+Shift+P` (or `Cmd+Shift+P` on macOS) and run `Developer: Reload Window`. A full restart is not required — VS Code picks up the user-level MCP config and prompt files on reload.
 
 No re-run is needed — Windsurf aliases were created from the binary in Step 4c, and VS Code prompt files were written by the install script in Step 1.
+
+## Optional: repo-specific Copilot instructions
+
+This is **not required** for VS Code MCP or slash commands.
+
+If the user explicitly wants extra repo-local Copilot instructions, they can add `TARGET/.github/copilot-instructions.md` manually from:
+
+`https://raw.githubusercontent.com/benitogf/detritus/main/templates/copilot-instructions.md`
+
+This file is optional and independent from the global detritus MCP setup.
 
 ## Update
 

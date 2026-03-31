@@ -21,9 +21,10 @@ Paste this into VS Code Copilot Chat (agent mode):
 The same setup workflow handles VS Code. The install script writes:
 - **User-level MCP config** (`~/.config/Code/User/mcp.json`) — detritus tools available in all workspaces
 - **User-level prompt files** (`~/.config/Code/User/prompts/`) — `/plan`, `/testing`, etc. available as slash commands in all workspaces without any per-repo setup
-- **`.github/copilot-instructions.md`** in the selected project — project context for Copilot
 
 Reload the VS Code window (`Ctrl+Shift+P` > `Developer: Reload Window`) after install.
+
+No repo-level files are required for VS Code.
 
 ## Manual Install
 
@@ -44,6 +45,8 @@ The install script downloads the binary and configures both IDEs automatically:
 - **VS Code**: `~/.config/Code/User/mcp.json` + `~/.config/Code/User/prompts/*.prompt.md`
 
 Restart Windsurf and reload VS Code after install.
+
+If you want repo-specific Copilot instructions as an extra, you can manually add `.github/copilot-instructions.md`, but it is not required for detritus to work in VS Code.
 
 ## Tools
 
