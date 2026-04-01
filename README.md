@@ -22,8 +22,11 @@ The same setup workflow handles VS Code. The install script writes:
 - **User-level MCP config** (`~/.config/Code/User/mcp.json`) — detritus tools available in all workspaces
 - **Shared prompt source config** (`chat.promptFilesLocations`) pointing to `~/.copilot/prompts`
 - **Shared prompt files** in `~/.copilot/prompts/*.prompt.md`
+- **Shared inline command instructions** in `~/.copilot/instructions/detritus.instructions.md`
+- **Instruction source config** (`chat.instructionsFilesLocations`) pointing to `~/.copilot/instructions`
 
 After install, slash commands are available globally from the shared prompt folder.
+You can also use multiple detritus command tokens anywhere in one message (example: `/truthseeker ... /plan ... /testing`).
 
 Optionally, if you want repository-local prompt files for a specific project, run:
 
@@ -54,8 +57,10 @@ The install script downloads the binary and configures both IDEs automatically:
 - **Windsurf**: `~/.codeium/windsurf/mcp_config.json`
 - **VS Code**: `~/.config/Code/User/mcp.json`
 - **VS Code shared prompts**: `~/.copilot/prompts/`
+- **VS Code shared instructions**: `~/.copilot/instructions/detritus.instructions.md`
 
 It also configures `chat.promptFilesLocations` to load prompts from `~/.copilot/prompts` and disable `.github/prompts` by default to prevent duplicate slash commands in multi-root workspaces.
+It configures `chat.instructionsFilesLocations` to load `~/.copilot/instructions`, enabling inline multi-command token routing.
 
 Restart Windsurf and reload VS Code after install.
 

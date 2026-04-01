@@ -56,7 +56,9 @@ The VS Code config format uses `"servers"` (not `"mcpServers"`):
 
 The install script also:
 - generates shared prompt files in `~/.copilot/prompts/*.prompt.md`
+- generates shared inline command instructions in `~/.copilot/instructions/detritus.instructions.md`
 - sets `chat.promptFilesLocations` so VS Code loads prompts from `~/.copilot/prompts` and disables `.github/prompts` by default
+- sets `chat.instructionsFilesLocations` so VS Code loads `~/.copilot/instructions`
 - cleans up old user-level prompt files from previous versions
 
 ## Step 3: Project selection
@@ -215,7 +217,9 @@ Note: default installer configuration disables `.github/prompts` to avoid duplic
 Tell the user to **fully close Windsurf** (File > Exit, not just close the window) and reopen it. After restart, the `kb_list`, `kb_get`, and `kb_search` tools will serve the updated documents.
 
 ### VS Code
-Tell the user to **reload the VS Code window**: press `Ctrl+Shift+P` (or `Cmd+Shift+P` on macOS) and run `Developer: Reload Window`. VS Code discovers the shared prompt files from `~/.copilot/prompts/` on reload.
+Tell the user to **reload the VS Code window**: press `Ctrl+Shift+P` (or `Cmd+Shift+P` on macOS) and run `Developer: Reload Window`. VS Code discovers the shared prompt files from `~/.copilot/prompts/` and shared instructions from `~/.copilot/instructions/` on reload.
+
+After reload, users can include multiple detritus command tokens anywhere in one message (for example: `/truthseeker ... /plan ... /testing`) and the inline router instructions will map them to multiple `kb_get` calls.
 
 ## Optional: repo-specific Copilot instructions
 
@@ -229,7 +233,7 @@ This file is optional and independent from the detritus MCP setup.
 
 ## Update
 
-To update to the latest version, re-run all steps. For Windsurf, Step 4c reads directly from the installed binary. For VS Code shared prompts, re-running the install script regenerates `~/.copilot/prompts/`.
+To update to the latest version, re-run all steps. For Windsurf, Step 4c reads directly from the installed binary. For VS Code shared prompts/instructions, re-running the install script regenerates `~/.copilot/prompts/` and `~/.copilot/instructions/detritus.instructions.md`.
 
 ## Troubleshooting
 

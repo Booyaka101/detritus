@@ -204,6 +204,36 @@ DOCLIST
   echo "Shared VS Code prompts: ${SHARED_PROMPTS_DIR}/"
 }
 
+generate_inline_command_instructions() {
+  local INSTR_DIR="$HOME/.copilot/instructions"
+  local INSTR_FILE="${INSTR_DIR}/detritus.instructions.md"
+  mkdir -p "$INSTR_DIR"
+
+  {
+    echo "---"
+    echo "description: detritus inline command router"
+    echo "applyTo: \"**\""
+    echo "---"
+    echo ""
+    echo "When a user message contains one or more detritus command tokens anywhere in the text (for example: /truthseeker, /plan, /testing), treat each token as an explicit request to load the matching knowledge doc."
+    echo ""
+    echo "Rules:"
+    echo "1. Detect command tokens anywhere in the message, not only at the beginning."
+    echo "2. Support multiple tokens in one message; process all of them (deduplicated) in order of appearance."
+    echo "3. For each detected token, call kb_get(name=\"...\") with the mapped doc name before producing the final answer."
+    echo "4. If no token is present, do not force a kb_get call from this instruction alone."
+    echo ""
+    echo "Token to doc mapping:"
+    "$BINARY_PATH" --list 2>/dev/null | while IFS=$(printf '\t') read -r name _desc; do
+      [ -z "$name" ] && continue
+      alias=$(vscode_alias_for_doc "$name")
+      echo "- /${alias} -> ${name}"
+    done
+  } > "$INSTR_FILE"
+
+  echo "VS Code shared instructions: ${INSTR_FILE}"
+}
+
 configure_vscode_mcp() {
   local VSCODE_DIR="$1"
   if [ ! -d "$VSCODE_DIR" ]; then
@@ -261,9 +291,14 @@ if not isinstance(locs, dict):
 locs['.github/prompts'] = False
 locs['~/.copilot/prompts'] = True
 data['chat.promptFilesLocations'] = locs
+instr = data.get('chat.instructionsFilesLocations')
+if not isinstance(instr, dict):
+    instr = {}
+instr['~/.copilot/instructions'] = True
+data['chat.instructionsFilesLocations'] = instr
 with open(path, 'w', encoding='utf-8') as f:
     json.dump(data, f, indent=2)
-print(f'Updated {path} (chat.promptFilesLocations)')
+print(f'Updated {path} (chat.promptFilesLocations, chat.instructionsFilesLocations)')
 PY
   elif [ ! -f "$VSCODE_SETTINGS" ]; then
     cat > "$VSCODE_SETTINGS" <<EOF
@@ -271,6 +306,9 @@ PY
   "chat.promptFilesLocations": {
     ".github/prompts": false,
     "~/.copilot/prompts": true
+  },
+  "chat.instructionsFilesLocations": {
+    "~/.copilot/instructions": true
   }
 }
 EOF
@@ -296,6 +334,7 @@ EOF
 }
 
 generate_shared_prompts
+generate_inline_command_instructions
 
 # Linux/macOS VS Code locations
 if [ "$OS" = "linux" ]; then
@@ -310,5 +349,6 @@ fi
 
 echo ""
 echo "VS Code slash commands: loaded from ~/.copilot/prompts/ (shared across workspaces)"
+echo "Inline detritus tokens: use multiple commands anywhere in one message (example: '/truthseeker ... /plan')."
 echo "Optional: run 'detritus --init' in a repo if you specifically want repo-local prompt files."
 echo "Reload VS Code window (Developer: Reload Window) to activate."

@@ -198,6 +198,41 @@ Call kb_get(name="$name") and follow the instructions in the returned document.
     Write-Host "Shared VS Code prompts: $sharedPrompts"
 }
 
+function Generate-InlineCommandInstructions {
+    $instrDir = Join-Path $env:USERPROFILE ".copilot\instructions"
+    $instrFile = Join-Path $instrDir "detritus.instructions.md"
+    New-Item -ItemType Directory -Path $instrDir -Force | Out-Null
+
+    $lines = New-Object System.Collections.Generic.List[string]
+    $lines.Add('---')
+    $lines.Add('description: detritus inline command router')
+    $lines.Add('applyTo: "**"')
+    $lines.Add('---')
+    $lines.Add('')
+    $lines.Add('When a user message contains one or more detritus command tokens anywhere in the text (for example: /truthseeker, /plan, /testing), treat each token as an explicit request to load the matching knowledge doc.')
+    $lines.Add('')
+    $lines.Add('Rules:')
+    $lines.Add('1. Detect command tokens anywhere in the message, not only at the beginning.')
+    $lines.Add('2. Support multiple tokens in one message; process all of them (deduplicated) in order of appearance.')
+    $lines.Add('3. For each detected token, call kb_get(name="...") with the mapped doc name before producing the final answer.')
+    $lines.Add('4. If no token is present, do not force a kb_get call from this instruction alone.')
+    $lines.Add('')
+    $lines.Add('Token to doc mapping:')
+
+    $listOutput = & $binaryPath --list 2>$null
+    foreach ($line in $listOutput) {
+        if ([string]::IsNullOrWhiteSpace($line)) { continue }
+        $parts = $line -split "`t", 2
+        if ($parts.Count -lt 1 -or [string]::IsNullOrWhiteSpace($parts[0])) { continue }
+        $name = $parts[0]
+        $alias = Get-VSCodeAliasForDoc $name
+        $lines.Add("- /$alias -> $name")
+    }
+
+    [System.IO.File]::WriteAllLines($instrFile, $lines, [System.Text.UTF8Encoding]::new($false))
+    Write-Host "VS Code shared instructions: $instrFile"
+}
+
 function Configure-VSCodeMcp {
     param([string]$VsCodeDir)
     if (-not (Test-Path $VsCodeDir)) { return }
@@ -233,6 +268,9 @@ function Configure-VSCodeMcp {
   "chat.promptFilesLocations": {
     ".github/prompts": false,
     "~/.copilot/prompts": true
+  },
+  "chat.instructionsFilesLocations": {
+    "~/.copilot/instructions": true
   }
 "@
     if (Test-Path $settingsPath) {
@@ -247,7 +285,7 @@ function Configure-VSCodeMcp {
             $raw = "{`n$promptLocationsBlock`n}`n"
         }
         [System.IO.File]::WriteAllText($settingsPath, $raw, [System.Text.UTF8Encoding]::new($false))
-        Write-Host "Updated $settingsPath (chat.promptFilesLocations)"
+        Write-Host "Updated $settingsPath (chat.promptFilesLocations, chat.instructionsFilesLocations)"
     } else {
         $json = "{`n$promptLocationsBlock`n}`n"
         [System.IO.File]::WriteAllText($settingsPath, $json, [System.Text.UTF8Encoding]::new($false))
@@ -271,11 +309,13 @@ function Configure-VSCodeMcp {
 }
 
 Generate-SharedPrompts
+Generate-InlineCommandInstructions
 
 $vsCodeUserDir = Join-Path $env:APPDATA "Code\User"
 Configure-VSCodeMcp $vsCodeUserDir
 
 Write-Host ""
 Write-Host "VS Code slash commands: loaded from ~/.copilot/prompts/ (shared across workspaces)"
+Write-Host "Inline detritus tokens: use multiple commands anywhere in one message (example: '/truthseeker ... /plan')."
 Write-Host "Optional: run 'detritus --init' in a repo if you specifically want repo-local prompt files."
 Write-Host "Reload VS Code window (Ctrl+Shift+P > Developer: Reload Window) to activate."
