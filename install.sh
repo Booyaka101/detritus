@@ -210,9 +210,15 @@ generate_inline_command_instructions() {
 
   {
     echo "---"
-    echo "description: detritus inline command router"
+    echo "description: detritus knowledge base guardrails and command router"
     echo "applyTo: \"**\""
     echo "---"
+    echo ""
+    echo "## Guardrails"
+    echo ""
+    echo "Push back when evidence demands it — including against the user. Research (KB via kb_search/kb_get, source code, docs) before asking researchable questions. Prove before acting. Early returns, flat code, no deep nesting."
+    echo ""
+    echo "## Command Tokens"
     echo ""
     echo "When a user message contains one or more detritus command tokens anywhere in the text (for example: /truthseeker, /plan, /testing), treat each token as an explicit request to load the matching knowledge doc."
     echo ""
@@ -231,6 +237,41 @@ generate_inline_command_instructions() {
   } > "$INSTR_FILE"
 
   echo "VS Code shared instructions: ${INSTR_FILE}"
+}
+
+generate_agent_file() {
+  local AGENTS_DIR="$HOME/.copilot/agents"
+  mkdir -p "$AGENTS_DIR"
+
+  cat > "$AGENTS_DIR/detritus.agent.md" <<'AGENT_EOF'
+---
+name: detritus
+description: Knowledge-enhanced coding agent with ooo ecosystem expertise, truthseeker principles, and project-specific guardrails.
+tools:
+  - detritus
+---
+
+# Detritus Agent
+
+You have access to the **detritus MCP server** providing knowledge base tools: `kb_list`, `kb_get`, `kb_search`. Use them to answer questions about the ooo ecosystem, testing patterns, Go idioms, and project architecture.
+
+## Always-On Principles
+
+1. **Push back when facts demand it** — including against the user. Do not soften challenges.
+2. **Research before asking** — exhaust KB docs (`kb_search`, `kb_get`), source code, and inline docs before asking the user anything researchable.
+3. **Prove before acting** — base conclusions on evidence, not assumptions. Show your reasoning.
+4. **Radical honesty** — if something is wrong, unproven, or assumed, say so directly.
+5. **Line-of-sight code** — early returns, flat structure, no deep nesting.
+
+## Workflow
+
+- For planning tasks, use the `/plan` prompt followed by `/plan-export` for documents.
+- For scaffolding, use the `/create` prompt.
+- For testing guidance, use the `/testing` prompt.
+- When uncertain about ooo internals, search the KB first: `kb_search(query="your question")`.
+AGENT_EOF
+
+  echo "Agent file: ${AGENTS_DIR}/detritus.agent.md"
 }
 
 continue_is_installed() {
@@ -379,9 +420,14 @@ if not isinstance(instr, dict):
     instr = {}
 instr['~/.copilot/instructions'] = True
 data['chat.instructionsFilesLocations'] = instr
+agents = data.get('chat.agentFilesLocations')
+if not isinstance(agents, dict):
+    agents = {}
+agents['~/.copilot/agents'] = True
+data['chat.agentFilesLocations'] = agents
 with open(path, 'w', encoding='utf-8') as f:
     json.dump(data, f, indent=2)
-print(f'Updated {path} (chat.promptFilesLocations, chat.instructionsFilesLocations)')
+print(f'Updated {path} (chat.promptFilesLocations, chat.instructionsFilesLocations, chat.agentFilesLocations)')
 PY
   elif [ ! -f "$VSCODE_SETTINGS" ]; then
     cat > "$VSCODE_SETTINGS" <<EOF
@@ -392,6 +438,9 @@ PY
   },
   "chat.instructionsFilesLocations": {
     "~/.copilot/instructions": true
+  },
+  "chat.agentFilesLocations": {
+    "~/.copilot/agents": true
   }
 }
 EOF
@@ -418,6 +467,7 @@ EOF
 
 generate_shared_prompts
 generate_inline_command_instructions
+generate_agent_file
 
 if continue_is_installed; then
   configure_continue

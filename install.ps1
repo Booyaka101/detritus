@@ -204,9 +204,15 @@ function Generate-InlineCommandInstructions {
 
     $lines = New-Object System.Collections.Generic.List[string]
     $lines.Add('---')
-    $lines.Add('description: detritus inline command router')
+    $lines.Add('description: detritus knowledge base guardrails and command router')
     $lines.Add('applyTo: "**"')
     $lines.Add('---')
+    $lines.Add('')
+    $lines.Add('## Guardrails')
+    $lines.Add('')
+    $lines.Add('Push back when evidence demands it — including against the user. Research (KB via kb_search/kb_get, source code, docs) before asking researchable questions. Prove before acting. Early returns, flat code, no deep nesting.')
+    $lines.Add('')
+    $lines.Add('## Command Tokens')
     $lines.Add('')
     $lines.Add('When a user message contains one or more detritus command tokens anywhere in the text (for example: /truthseeker, /plan, /testing), treat each token as an explicit request to load the matching knowledge doc.')
     $lines.Add('')
@@ -230,6 +236,43 @@ function Generate-InlineCommandInstructions {
 
     [System.IO.File]::WriteAllLines($instrFile, $lines, [System.Text.UTF8Encoding]::new($false))
     Write-Host "VS Code shared instructions: $instrFile"
+}
+
+function Generate-AgentFile {
+    $agentsDir = Join-Path $env:USERPROFILE ".copilot\agents"
+    New-Item -ItemType Directory -Path $agentsDir -Force | Out-Null
+    $agentFile = Join-Path $agentsDir "detritus.agent.md"
+
+    $content = @"
+---
+name: detritus
+description: Knowledge-enhanced coding agent with ooo ecosystem expertise, truthseeker principles, and project-specific guardrails.
+tools:
+  - detritus
+---
+
+# Detritus Agent
+
+You have access to the **detritus MCP server** providing knowledge base tools: ``kb_list``, ``kb_get``, ``kb_search``. Use them to answer questions about the ooo ecosystem, testing patterns, Go idioms, and project architecture.
+
+## Always-On Principles
+
+1. **Push back when facts demand it** — including against the user. Do not soften challenges.
+2. **Research before asking** — exhaust KB docs (``kb_search``, ``kb_get``), source code, and inline docs before asking the user anything researchable.
+3. **Prove before acting** — base conclusions on evidence, not assumptions. Show your reasoning.
+4. **Radical honesty** — if something is wrong, unproven, or assumed, say so directly.
+5. **Line-of-sight code** — early returns, flat structure, no deep nesting.
+
+## Workflow
+
+- For planning tasks, use the ``/plan`` prompt followed by ``/plan-export`` for documents.
+- For scaffolding, use the ``/create`` prompt.
+- For testing guidance, use the ``/testing`` prompt.
+- When uncertain about ooo internals, search the KB first: ``kb_search(query="your question")``.
+"@
+
+    [System.IO.File]::WriteAllText($agentFile, $content, [System.Text.UTF8Encoding]::new($false))
+    Write-Host "Agent file: $agentFile"
 }
 
 function Test-ContinueInstalled {
@@ -347,6 +390,9 @@ function Configure-VSCodeMcp {
   },
   "chat.instructionsFilesLocations": {
     "~/.copilot/instructions": true
+  },
+  "chat.agentFilesLocations": {
+    "~/.copilot/agents": true
   }
 "@
     if (Test-Path $settingsPath) {
@@ -386,6 +432,7 @@ function Configure-VSCodeMcp {
 
 Generate-SharedPrompts
 Generate-InlineCommandInstructions
+Generate-AgentFile
 
 if (Test-ContinueInstalled) {
     Configure-Continue

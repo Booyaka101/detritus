@@ -1,8 +1,8 @@
 {
-  "mcpServers": {
-    "detritus": {
-      "command": "detritus",
-      "args": []
+    "mcpServers": {
+        "detritus": {
+            "command": "detritus",
+            "args": []
+        }
     }
-  }
 }
