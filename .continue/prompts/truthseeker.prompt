@@ -1,0 +1,4 @@
+name: truthseeker
+description: Load detritus knowledge doc meta/truthseeker
+---
+Use the detritus MCP server and call kb_get with name="meta/truthseeker". Then follow the returned guidance strictly.

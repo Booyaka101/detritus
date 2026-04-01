@@ -1,0 +1,4 @@
+name: line-of-sight
+description: Load detritus knowledge doc patterns/line-of-sight
+---
+Use the detritus MCP server and call kb_get with name="patterns/line-of-sight". Then follow the returned guidance strictly.

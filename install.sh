@@ -179,7 +179,6 @@ generate_shared_prompts() {
 ---
 description: ${desc}
 agent: agent
-tools: ["detritus/*"]
 ---
 
 Call kb_get(name="${name}") and follow the instructions in the returned document.
@@ -232,6 +231,90 @@ generate_inline_command_instructions() {
   } > "$INSTR_FILE"
 
   echo "VS Code shared instructions: ${INSTR_FILE}"
+}
+
+continue_is_installed() {
+  if command -v cn >/dev/null 2>&1; then
+    return 0
+  fi
+  if [ -d "$HOME/.continue" ]; then
+    return 0
+  fi
+  if [ -d "$HOME/.vscode-server/extensions" ] && ls "$HOME/.vscode-server/extensions"/*continue* >/dev/null 2>&1; then
+    return 0
+  fi
+  if [ -d "$HOME/.vscode/extensions" ] && ls "$HOME/.vscode/extensions"/*continue* >/dev/null 2>&1; then
+    return 0
+  fi
+  return 1
+}
+
+configure_continue() {
+  local CONTINUE_DIR="$HOME/.continue"
+  local MCP_DIR="${CONTINUE_DIR}/mcpServers"
+  local PROMPTS_DIR="${CONTINUE_DIR}/prompts"
+  local GENERATED_LIST="${TMP}/continue_generated_prompts.txt"
+
+  mkdir -p "$MCP_DIR" "$PROMPTS_DIR"
+  : > "$GENERATED_LIST"
+
+  cat > "${MCP_DIR}/detritus.yaml" <<EOF
+name: detritus-local
+version: 0.0.1
+schema: v1
+mcpServers:
+  - name: detritus
+    command: ${BINARY_PATH_JSON}
+    args: []
+EOF
+
+  tab=$(printf '\t')
+  while IFS="$tab" read -r name _desc; do
+    [ -z "$name" ] && continue
+    alias=$(vscode_alias_for_doc "$name")
+    file="${PROMPTS_DIR}/${alias}.prompt"
+    cat > "$file" <<EOF
+name: ${alias}
+description: Load detritus knowledge doc ${name}
+invokable: true
+---
+Use the detritus MCP server and call kb_get with name="${name}". Then follow the returned guidance strictly.
+EOF
+    echo "${alias}.prompt" >> "$GENERATED_LIST"
+  done << DOCLIST
+$($BINARY_PATH --list 2>/dev/null)
+DOCLIST
+
+  {
+    echo "name: detritus-help"
+    echo "description: List all detritus slash commands"
+    echo "invokable: true"
+    echo "---"
+    echo "Available detritus commands:"
+    for f in "$PROMPTS_DIR"/*.prompt; do
+      [ -f "$f" ] || continue
+      base=$(basename "$f" .prompt)
+      echo "$base"
+    done | sort -u | sed 's#^#- /#'
+  } > "${PROMPTS_DIR}/detritus-help.prompt"
+
+  # Remove stale detritus-generated prompt files while preserving unrelated user prompts.
+  for f in "$PROMPTS_DIR"/*.prompt; do
+    [ -f "$f" ] || continue
+    base=$(basename "$f")
+    if [ "$base" = "detritus-help.prompt" ]; then
+      continue
+    fi
+    if grep -qx "$base" "$GENERATED_LIST"; then
+      continue
+    fi
+    if grep -q 'Use the detritus MCP server and call kb_get with name=' "$f" 2>/dev/null; then
+      rm -f "$f"
+    fi
+  done
+
+  echo "Continue MCP config: ${MCP_DIR}/detritus.yaml"
+  echo "Continue prompts: ${PROMPTS_DIR}/"
 }
 
 configure_vscode_mcp() {
@@ -336,6 +419,12 @@ EOF
 generate_shared_prompts
 generate_inline_command_instructions
 
+if continue_is_installed; then
+  configure_continue
+else
+  echo "Continue not detected; skipping Continue prompt/MCP setup."
+fi
+
 # Linux/macOS VS Code locations
 if [ "$OS" = "linux" ]; then
   configure_vscode_mcp "$HOME/.config/Code/User"
@@ -350,5 +439,6 @@ fi
 echo ""
 echo "VS Code slash commands: loaded from ~/.copilot/prompts/ (shared across workspaces)"
 echo "Inline detritus tokens: use multiple commands anywhere in one message (example: '/truthseeker ... /plan')."
+echo "Continue integration: if Continue is installed, installer writes ~/.continue/mcpServers + ~/.continue/prompts."
 echo "Optional: run 'detritus --init' in a repo if you specifically want repo-local prompt files."
 echo "Reload VS Code window (Developer: Reload Window) to activate."

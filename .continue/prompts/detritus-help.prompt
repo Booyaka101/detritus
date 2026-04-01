@@ -1,0 +1,28 @@
+name: detritus-help
+description: List all detritus slash commands
+---
+Available detritus commands:
+- /async-events
+- /coding-style
+- /create
+- /detritus-help
+- /diagrams
+- /go-modern
+- /grow
+- /line-of-sight
+- /ooo-auth
+- /ooo-client-js
+- /ooo-filters-internals
+- /ooo-nopog
+- /ooo-package
+- /ooo-pivot
+- /optimize
+- /plan
+- /plan-export
+- /research-first
+- /state-management
+- /testing
+- /testing-go-backend-async
+- /testing-go-backend-e2e
+- /testing-go-backend-mock
+- /truthseeker

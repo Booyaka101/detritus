@@ -177,7 +177,6 @@ function Generate-SharedPrompts {
 ---
 description: $desc
 agent: agent
-tools: ["detritus/*"]
 ---
 
 Call kb_get(name="$name") and follow the instructions in the returned document.
@@ -231,6 +230,83 @@ function Generate-InlineCommandInstructions {
 
     [System.IO.File]::WriteAllLines($instrFile, $lines, [System.Text.UTF8Encoding]::new($false))
     Write-Host "VS Code shared instructions: $instrFile"
+}
+
+function Test-ContinueInstalled {
+    if (Get-Command cn -ErrorAction SilentlyContinue) { return $true }
+    if (Test-Path (Join-Path $env:USERPROFILE ".continue")) { return $true }
+    if (Test-Path "$env:USERPROFILE\.vscode\extensions") {
+        if (Get-ChildItem "$env:USERPROFILE\.vscode\extensions" -Filter "*continue*" -ErrorAction SilentlyContinue) { return $true }
+    }
+    if (Test-Path "$env:USERPROFILE\.vscode-server\extensions") {
+        if (Get-ChildItem "$env:USERPROFILE\.vscode-server\extensions" -Filter "*continue*" -ErrorAction SilentlyContinue) { return $true }
+    }
+    return $false
+}
+
+function Configure-Continue {
+    $continueDir = Join-Path $env:USERPROFILE ".continue"
+    $mcpDir = Join-Path $continueDir "mcpServers"
+    $promptsDir = Join-Path $continueDir "prompts"
+    New-Item -ItemType Directory -Path $mcpDir -Force | Out-Null
+    New-Item -ItemType Directory -Path $promptsDir -Force | Out-Null
+
+    $mcpContent = @"
+name: detritus-local
+version: 0.0.1
+schema: v1
+mcpServers:
+  - name: detritus
+    command: $binaryPathForJson
+    args: []
+"@
+    [System.IO.File]::WriteAllText((Join-Path $mcpDir "detritus.yaml"), $mcpContent, [System.Text.UTF8Encoding]::new($false))
+
+    $generated = @{}
+    $listOutput = & $binaryPath --list 2>$null
+    foreach ($line in $listOutput) {
+        if ([string]::IsNullOrWhiteSpace($line)) { continue }
+        $parts = $line -split "`t", 2
+        if ($parts.Count -lt 1 -or [string]::IsNullOrWhiteSpace($parts[0])) { continue }
+        $name = $parts[0]
+        $alias = Get-VSCodeAliasForDoc $name
+        $generated["$alias.prompt"] = $true
+        $content = @"
+name: $alias
+description: Load detritus knowledge doc $name
+invokable: true
+---
+Use the detritus MCP server and call kb_get with name="$name". Then follow the returned guidance strictly.
+"@
+        [System.IO.File]::WriteAllText((Join-Path $promptsDir "$alias.prompt"), $content, [System.Text.UTF8Encoding]::new($false))
+    }
+
+    # Remove stale detritus-generated prompts while preserving unrelated user prompts
+    Get-ChildItem $promptsDir -Filter "*.prompt" -ErrorAction SilentlyContinue | ForEach-Object {
+        if ($_.Name -eq "detritus-help.prompt") { return }
+        if ($generated.ContainsKey($_.Name)) { return }
+        $raw = Get-Content $_.FullName -Raw
+        if ($raw -match 'Use the detritus MCP server and call kb_get with name=') {
+            Remove-Item $_.FullName -Force
+        }
+    }
+
+    $commands = Get-ChildItem $promptsDir -Filter "*.prompt" -ErrorAction SilentlyContinue |
+        ForEach-Object { $_.BaseName } |
+        Sort-Object -Unique |
+        ForEach-Object { "- /$_" }
+
+    $helpContent = @(
+        "name: detritus-help",
+        "description: List all detritus slash commands",
+        "invokable: true",
+        "---",
+        "Available detritus commands:"
+    ) + $commands
+    [System.IO.File]::WriteAllLines((Join-Path $promptsDir "detritus-help.prompt"), $helpContent, [System.Text.UTF8Encoding]::new($false))
+
+    Write-Host "Continue MCP config: $(Join-Path $mcpDir 'detritus.yaml')"
+    Write-Host "Continue prompts: $promptsDir"
 }
 
 function Configure-VSCodeMcp {
@@ -311,11 +387,18 @@ function Configure-VSCodeMcp {
 Generate-SharedPrompts
 Generate-InlineCommandInstructions
 
+if (Test-ContinueInstalled) {
+    Configure-Continue
+} else {
+    Write-Host "Continue not detected; skipping Continue prompt/MCP setup."
+}
+
 $vsCodeUserDir = Join-Path $env:APPDATA "Code\User"
 Configure-VSCodeMcp $vsCodeUserDir
 
 Write-Host ""
 Write-Host "VS Code slash commands: loaded from ~/.copilot/prompts/ (shared across workspaces)"
 Write-Host "Inline detritus tokens: use multiple commands anywhere in one message (example: '/truthseeker ... /plan')."
+Write-Host "Continue integration: if Continue is installed, installer writes ~/.continue/mcpServers + ~/.continue/prompts."
 Write-Host "Optional: run 'detritus --init' in a repo if you specifically want repo-local prompt files."
 Write-Host "Reload VS Code window (Ctrl+Shift+P > Developer: Reload Window) to activate."
