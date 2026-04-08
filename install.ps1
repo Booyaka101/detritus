@@ -352,6 +352,100 @@ Use the detritus MCP server and call kb_get with name="$name". Then follow the r
     Write-Host "Continue prompts: $promptsDir"
 }
 
+function Test-VerdentInstalled {
+    if (Test-Path (Join-Path $env:USERPROFILE ".verdent")) { return $true }
+    if (Test-Path "$env:USERPROFILE\.vscode\extensions") {
+        if (Get-ChildItem "$env:USERPROFILE\.vscode\extensions" -Filter "*verdent*" -ErrorAction SilentlyContinue) { return $true }
+    }
+    if (Test-Path "$env:USERPROFILE\.vscode-server\extensions") {
+        if (Get-ChildItem "$env:USERPROFILE\.vscode-server\extensions" -Filter "*verdent*" -ErrorAction SilentlyContinue) { return $true }
+    }
+    return $false
+}
+
+function Configure-Verdent {
+    $verdentDir = Join-Path $env:USERPROFILE ".verdent"
+    $verdentMcp = Join-Path $verdentDir "mcp.json"
+    $verdentRules = Join-Path $verdentDir "VERDENT.md"
+    New-Item -ItemType Directory -Path $verdentDir -Force | Out-Null
+
+    if (Test-Path $verdentMcp) {
+        $raw = Get-Content $verdentMcp -Raw
+        if ([string]::IsNullOrWhiteSpace($raw)) {
+            $raw = "{}"
+        }
+        try {
+            $data = $raw | ConvertFrom-Json -Depth 20
+        } catch {
+            $data = [pscustomobject]@{}
+        }
+        if (-not ($data.PSObject.Properties.Name -contains "mcpServers")) {
+            $data | Add-Member -NotePropertyName "mcpServers" -NotePropertyValue ([pscustomobject]@{})
+        }
+        $data.mcpServers | Add-Member -NotePropertyName "detritus" -NotePropertyValue ([pscustomobject]@{ command = $binaryPathForJson; args = @() }) -Force
+        $json = $data | ConvertTo-Json -Depth 20
+        [System.IO.File]::WriteAllText($verdentMcp, $json, [System.Text.UTF8Encoding]::new($false))
+        Write-Host "Updated detritus in $verdentMcp"
+    } else {
+        $json = @"
+{
+  "mcpServers": {
+    "detritus": {
+      "command": "$binaryPathForJson",
+      "args": []
+    }
+  }
+}
+"@
+        [System.IO.File]::WriteAllText($verdentMcp, $json, [System.Text.UTF8Encoding]::new($false))
+        Write-Host "Created $verdentMcp"
+    }
+
+    $commands = (& $binaryPath --list 2>$null) |
+        ForEach-Object {
+            if ([string]::IsNullOrWhiteSpace($_)) { return }
+            $parts = $_ -split "`t", 2
+            if ($parts.Count -lt 1 -or [string]::IsNullOrWhiteSpace($parts[0])) { return }
+            $name = $parts[0]
+            $alias = Get-VSCodeAliasForDoc $name
+            "- /$alias -> $name"
+        }
+
+    $ruleBlock = @(
+        "<!-- DETRITUS-RULES:START -->",
+        "# Detritus Knowledge Base Rules",
+        "",
+        "- Use the detritus MCP server as the default knowledge source for software-engineering guidance.",
+        "- For architecture, planning, testing, patterns, and ooo ecosystem questions, call detritus kb_get before answering.",
+        "- When uncertain which document to use, call kb_search first and then kb_get for the best match.",
+        "- Keep manual invocation available. If user explicitly asks, support command-style prompts like /plan, /grow, /create, /testing.",
+        "",
+        "Manual command to doc mapping:"
+    ) + $commands + @(
+        "<!-- DETRITUS-RULES:END -->"
+    )
+
+    if (Test-Path $verdentRules) {
+        $existing = Get-Content $verdentRules
+        $start = ($existing | Select-String '<!-- DETRITUS-RULES:START -->' -SimpleMatch).LineNumber
+        $end = ($existing | Select-String '<!-- DETRITUS-RULES:END -->' -SimpleMatch).LineNumber
+        if ($start -and $end -and $end -ge $start) {
+            $before = if ($start -gt 1) { $existing[0..($start-2)] } else { @() }
+            $after = if ($end -lt $existing.Length) { $existing[$end..($existing.Length-1)] } else { @() }
+            $merged = @($before + $after + @("") + $ruleBlock)
+            [System.IO.File]::WriteAllLines($verdentRules, $merged, [System.Text.UTF8Encoding]::new($false))
+        } else {
+            $merged = @($existing + @("", "") + $ruleBlock)
+            [System.IO.File]::WriteAllLines($verdentRules, $merged, [System.Text.UTF8Encoding]::new($false))
+        }
+    } else {
+        [System.IO.File]::WriteAllLines($verdentRules, $ruleBlock, [System.Text.UTF8Encoding]::new($false))
+    }
+
+    Write-Host "Verdent MCP config: $verdentMcp"
+    Write-Host "Verdent rules: $verdentRules"
+}
+
 function Configure-VSCodeMcp {
     param([string]$VsCodeDir)
     if (-not (Test-Path $VsCodeDir)) { return }
@@ -440,6 +534,55 @@ if (Test-ContinueInstalled) {
     Write-Host "Continue not detected; skipping Continue prompt/MCP setup."
 }
 
+if (Test-VerdentInstalled) {
+    Configure-Verdent
+} else {
+    Write-Host "Verdent not detected; skipping Verdent MCP/rules setup."
+}
+
+Write-Host ""
+Write-Host "Post-install verification:"
+
+if ((Test-Path $mcpConfigPath) -and ((Get-Content $mcpConfigPath -Raw) -match '"detritus"\s*:')) {
+    Write-Host "  [PASS] Windsurf MCP entry"
+} else {
+    Write-Host "  [WARN] Windsurf MCP entry"
+}
+
+$vsCodeMcpPath = Join-Path $env:APPDATA "Code\User\mcp.json"
+if ((Test-Path $vsCodeMcpPath) -and ((Get-Content $vsCodeMcpPath -Raw) -match '"detritus"\s*:')) {
+    Write-Host "  [PASS] VS Code MCP entry"
+} else {
+    Write-Host "  [WARN] VS Code MCP entry"
+}
+
+$copilotPrompt = Join-Path $env:USERPROFILE ".copilot\prompts\plan.prompt.md"
+$copilotInstr = Join-Path $env:USERPROFILE ".copilot\instructions\detritus.instructions.md"
+if ((Test-Path $copilotPrompt) -and (Test-Path $copilotInstr)) {
+    Write-Host "  [PASS] Copilot shared prompts/instructions"
+} else {
+    Write-Host "  [WARN] Copilot shared prompts/instructions"
+}
+
+if (Test-ContinueInstalled) {
+    $continueMcp = Join-Path $env:USERPROFILE ".continue\mcpServers\detritus.yaml"
+    if (Test-Path $continueMcp) {
+        Write-Host "  [PASS] Continue MCP config"
+    } else {
+        Write-Host "  [WARN] Continue MCP config"
+    }
+}
+
+if (Test-VerdentInstalled) {
+    $verdentMcp = Join-Path $env:USERPROFILE ".verdent\mcp.json"
+    $verdentRules = Join-Path $env:USERPROFILE ".verdent\VERDENT.md"
+    if ((Test-Path $verdentMcp) -and (Test-Path $verdentRules)) {
+        Write-Host "  [PASS] Verdent MCP/rules"
+    } else {
+        Write-Host "  [WARN] Verdent MCP/rules"
+    }
+}
+
 $vsCodeUserDir = Join-Path $env:APPDATA "Code\User"
 Configure-VSCodeMcp $vsCodeUserDir
 
@@ -482,5 +625,6 @@ Write-Host "VS Code slash commands: loaded from ~/.copilot/prompts/ (shared acro
 Write-Host "Inline detritus tokens: use multiple commands anywhere in one message (example: '/truthseeker ... /plan')."
 Write-Host "Continue integration: if Continue is installed, installer writes ~/.continue/mcpServers + ~/.continue/prompts."
 Write-Host "Cursor integration: MCP config written to Cursor User directory."
+Write-Host "Verdent integration: if Verdent is installed, installer writes ~/.verdent/mcp.json + ~/.verdent/VERDENT.md."
 Write-Host "Optional: run 'detritus --init' in a repo if you specifically want repo-local prompt files."
 Write-Host "Reload VS Code window (Ctrl+Shift+P > Developer: Reload Window) to activate."

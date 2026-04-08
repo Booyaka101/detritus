@@ -35,6 +35,19 @@ The install script downloads the binary and configures:
 - **Cursor**: `~/.config/Cursor/User/mcp.json` (Linux), `%APPDATA%\Cursor\User\mcp.json` (Windows)
 - **Continue**: `~/.continue/mcpServers/` + `~/.continue/prompts/`
 
+If Verdent is detected, it also configures Verdent globally:
+- **Verdent MCP config**: `~/.verdent/mcp.json`
+- **Verdent always-on curated rules**: `~/.verdent/VERDENT.md` (detritus-managed rules block)
+
+If Continue is detected, it also configures Continue globally:
+- **Continue MCP config**: `~/.continue/mcpServers/detritus.yaml`
+- **Continue slash prompts**: `~/.continue/prompts/*.prompt`
+
+It also configures `chat.promptFilesLocations` to load prompts from `~/.copilot/prompts` and disable `.github/prompts` by default to prevent duplicate slash commands in multi-root workspaces.
+It configures `chat.instructionsFilesLocations` to load `~/.copilot/instructions`, enabling inline multi-command token routing.
+
+For Verdent, the installer keeps detritus curated by default (global rules) while preserving manual invocation patterns (for example `/plan`, `/grow`, `/create`, `/testing`) in prompts.
+
 Restart your editor after install.
 
 ## Agent Plugin

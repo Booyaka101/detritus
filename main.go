@@ -209,7 +209,7 @@ func initPromptFiles() {
 		filename := alias + ".prompt.md"
 		generated[filename] = true
 
-		prompt := fmt.Sprintf("---\ndescription: %s\nagent: agent\ntools: [\"detritus/*\"]\n---\n\nCall kb_get(name=\"%s\") and follow the instructions in the returned document.\n", desc, name)
+		prompt := fmt.Sprintf("---\ndescription: %s\nagent: agent\n---\n\nCall kb_get(name=\"%s\") and follow the instructions in the returned document.\n", desc, name)
 
 		fpath := filepath.Join(promptsDir, filename)
 		if err := os.WriteFile(fpath, []byte(prompt), 0o644); err != nil {

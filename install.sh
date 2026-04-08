@@ -358,6 +358,98 @@ DOCLIST
   echo "Continue prompts: ${PROMPTS_DIR}/"
 }
 
+verdent_is_installed() {
+  if [ -d "$HOME/.verdent" ]; then
+    return 0
+  fi
+  if [ -d "$HOME/.vscode-server/extensions" ] && ls "$HOME/.vscode-server/extensions"/*verdent* >/dev/null 2>&1; then
+    return 0
+  fi
+  if [ -d "$HOME/.vscode/extensions" ] && ls "$HOME/.vscode/extensions"/*verdent* >/dev/null 2>&1; then
+    return 0
+  fi
+  return 1
+}
+
+configure_verdent() {
+  local VERDENT_DIR="$HOME/.verdent"
+  local VERDENT_MCP="${VERDENT_DIR}/mcp.json"
+  local VERDENT_RULES="${VERDENT_DIR}/VERDENT.md"
+  mkdir -p "$VERDENT_DIR"
+
+  if [ -f "$VERDENT_MCP" ] && command -v python3 >/dev/null 2>&1; then
+    python3 - <<PY
+import json
+path = "$VERDENT_MCP"
+with open(path, 'r', encoding='utf-8') as f:
+    data = json.load(f)
+data.setdefault('mcpServers', {})
+data['mcpServers']['detritus'] = {'command': '$BINARY_PATH_JSON', 'args': []}
+with open(path, 'w', encoding='utf-8') as f:
+    json.dump(data, f, indent=2)
+print(f'Updated detritus in {path}')
+PY
+  elif [ -f "$VERDENT_MCP" ]; then
+    echo "python3 not found, please add manually to ${VERDENT_MCP}:"
+    echo '  "detritus": { "command": "'${BINARY_PATH_JSON}'", "args": [] }'
+  else
+    cat > "$VERDENT_MCP" <<EOF
+{
+  "mcpServers": {
+    "detritus": {
+      "command": "${BINARY_PATH_JSON}",
+      "args": []
+    }
+  }
+}
+EOF
+    echo "Created ${VERDENT_MCP}"
+  fi
+
+  local RULE_BLOCK_FILE="${TMP}/verdent_detritus_rules.md"
+  {
+    echo "<!-- DETRITUS-RULES:START -->"
+    echo "# Detritus Knowledge Base Rules"
+    echo ""
+    echo "- Use the detritus MCP server as the default knowledge source for software-engineering guidance."
+    echo "- For architecture, planning, testing, patterns, and ooo ecosystem questions, call detritus kb_get before answering."
+    echo "- When uncertain which document to use, call kb_search first and then kb_get for the best match."
+    echo "- Keep manual invocation available. If user explicitly asks, support command-style prompts like /plan, /grow, /create, /testing."
+    echo ""
+    echo "Manual command to doc mapping:"
+    "$BINARY_PATH" --list 2>/dev/null | while IFS=$(printf '\t') read -r name _desc; do
+      [ -z "$name" ] && continue
+      alias=$(vscode_alias_for_doc "$name")
+      echo "- /${alias} -> ${name}"
+    done
+    echo "<!-- DETRITUS-RULES:END -->"
+  } > "$RULE_BLOCK_FILE"
+
+  if [ -f "$VERDENT_RULES" ]; then
+    if grep -q '<!-- DETRITUS-RULES:START -->' "$VERDENT_RULES"; then
+      awk '
+        BEGIN {inblock=0}
+        /<!-- DETRITUS-RULES:START -->/ {inblock=1; next}
+        /<!-- DETRITUS-RULES:END -->/ {inblock=0; next}
+        !inblock {print}
+      ' "$VERDENT_RULES" > "${TMP}/verdent_rules_base.md"
+      cat "${TMP}/verdent_rules_base.md" "$RULE_BLOCK_FILE" > "$VERDENT_RULES"
+    else
+      {
+        cat "$VERDENT_RULES"
+        echo ""
+        cat "$RULE_BLOCK_FILE"
+      } > "${TMP}/verdent_rules_new.md"
+      mv "${TMP}/verdent_rules_new.md" "$VERDENT_RULES"
+    fi
+  else
+    cp "$RULE_BLOCK_FILE" "$VERDENT_RULES"
+  fi
+
+  echo "Verdent MCP config: ${VERDENT_MCP}"
+  echo "Verdent rules: ${VERDENT_RULES}"
+}
+
 configure_vscode_mcp() {
   local VSCODE_DIR="$1"
   if [ ! -d "$VSCODE_DIR" ]; then
@@ -475,6 +567,56 @@ else
   echo "Continue not detected; skipping Continue prompt/MCP setup."
 fi
 
+if verdent_is_installed; then
+  configure_verdent
+else
+  echo "Verdent not detected; skipping Verdent MCP/rules setup."
+fi
+
+echo ""
+echo "Post-install verification:"
+
+if [ -f "$HOME/.codeium/windsurf/mcp_config.json" ] && grep -q '"detritus"' "$HOME/.codeium/windsurf/mcp_config.json" 2>/dev/null; then
+  echo "  [PASS] Windsurf MCP entry"
+else
+  echo "  [WARN] Windsurf MCP entry"
+fi
+
+VSCODE_OK=0
+for f in "$HOME/.config/Code/User/mcp.json" "$HOME/.vscode-server/data/User/mcp.json"; do
+  if [ -f "$f" ] && grep -q '"detritus"' "$f" 2>/dev/null; then
+    VSCODE_OK=1
+    break
+  fi
+done
+if [ "$VSCODE_OK" -eq 1 ]; then
+  echo "  [PASS] VS Code MCP entry"
+else
+  echo "  [WARN] VS Code MCP entry"
+fi
+
+if [ -f "$HOME/.copilot/prompts/plan.prompt.md" ] && [ -f "$HOME/.copilot/instructions/detritus.instructions.md" ]; then
+  echo "  [PASS] Copilot shared prompts/instructions"
+else
+  echo "  [WARN] Copilot shared prompts/instructions"
+fi
+
+if continue_is_installed; then
+  if [ -f "$HOME/.continue/mcpServers/detritus.yaml" ]; then
+    echo "  [PASS] Continue MCP config"
+  else
+    echo "  [WARN] Continue MCP config"
+  fi
+fi
+
+if verdent_is_installed; then
+  if [ -f "$HOME/.verdent/mcp.json" ] && [ -f "$HOME/.verdent/VERDENT.md" ]; then
+    echo "  [PASS] Verdent MCP/rules"
+  else
+    echo "  [WARN] Verdent MCP/rules"
+  fi
+fi
+
 # Linux/macOS VS Code locations
 if [ "$OS" = "linux" ]; then
   configure_vscode_mcp "$HOME/.config/Code/User"
@@ -543,5 +685,6 @@ echo "VS Code slash commands: loaded from ~/.copilot/prompts/ (shared across wor
 echo "Inline detritus tokens: use multiple commands anywhere in one message (example: '/truthseeker ... /plan')."
 echo "Continue integration: if Continue is installed, installer writes ~/.continue/mcpServers + ~/.continue/prompts."
 echo "Cursor integration: MCP config written to Cursor User directory."
+echo "Verdent integration: if Verdent is installed, installer writes ~/.verdent/mcp.json + ~/.verdent/VERDENT.md."
 echo "Optional: run 'detritus --init' in a repo if you specifically want repo-local prompt files."
 echo "Reload VS Code window (Developer: Reload Window) to activate."

@@ -8,7 +8,7 @@ Detect the user's OS and **shell** before proceeding. On Windows, check if the t
 
 ## Step 1: Install the binary
 
-The install script handles **both Windsurf and VS Code** automatically — it writes the MCP config for both IDEs.
+The install script handles **Windsurf, VS Code, and Verdent** automatically — it writes MCP config for all detected IDEs.
 
 ### Linux / macOS / Windows (Git Bash, WSL, MSYS2)
 
@@ -60,6 +60,27 @@ The install script also:
 - sets `chat.promptFilesLocations` so VS Code loads prompts from `~/.copilot/prompts` and disables `.github/prompts` by default
 - sets `chat.instructionsFilesLocations` so VS Code loads `~/.copilot/instructions`
 - cleans up old user-level prompt files from previous versions
+
+### Verdent
+
+If Verdent is installed, the install script configures:
+- `~/.verdent/mcp.json` with a `detritus` MCP server entry
+- `~/.verdent/VERDENT.md` with a detritus-managed curated rules block (always-on guidance)
+
+Read and verify `~/.verdent/mcp.json` includes:
+
+```json
+{
+  "mcpServers": {
+    "detritus": {
+      "command": "/usr/local/bin/detritus",
+      "args": []
+    }
+  }
+}
+```
+
+On Windows, command should be `C:/Users/USERNAME/AppData/Local/detritus/detritus.exe`.
 
 ## Step 3: Project selection
 
@@ -220,6 +241,9 @@ Tell the user to **fully close Windsurf** (File > Exit, not just close the windo
 Tell the user to **reload the VS Code window**: press `Ctrl+Shift+P` (or `Cmd+Shift+P` on macOS) and run `Developer: Reload Window`. VS Code discovers the shared prompt files from `~/.copilot/prompts/` and shared instructions from `~/.copilot/instructions/` on reload.
 
 After reload, users can include multiple detritus command tokens anywhere in one message (for example: `/truthseeker ... /plan ... /testing`) and the inline router instructions will map them to multiple `kb_get` calls.
+
+### Verdent
+Tell the user to restart Verdent (or reopen the project) so MCP servers and rule files are reloaded from `~/.verdent/`.
 
 ## Optional: repo-specific Copilot instructions
 
