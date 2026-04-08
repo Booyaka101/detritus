@@ -122,6 +122,35 @@ func TestMCPServer(t *testing.T) {
 		}
 	}
 
+	// Test: kb_get with alias resolution (underscore-prefixed old naming convention)
+	for _, tc := range []struct {
+		input string
+		want  string
+	}{
+		{"_truthseeker", "Foundational"},     // old _alias -> meta/truthseeker
+		{"truthseeker", "Foundational"},      // bare alias -> meta/truthseeker
+		{"/truthseeker", "Foundational"},     // slash-prefixed -> meta/truthseeker
+		{"plan", ""},                         // alias -> plan/analyze (just check no error)
+		{"ooo-package", ""},                  // hyphen alias -> ooo/package
+		{"meta/truthseeker", "Foundational"}, // canonical name still works
+		{"testing-go-backend-mock", ""},      // compound alias -> testing/go-backend-mock
+	} {
+		aliasResult, err := session.CallTool(ctx, &mcp.CallToolParams{
+			Name:      "kb_get",
+			Arguments: map[string]any{"name": tc.input},
+		})
+		if err != nil {
+			t.Fatalf("kb_get alias %q: %v", tc.input, err)
+		}
+		if aliasResult.IsError {
+			t.Fatalf("kb_get alias %q returned error", tc.input)
+		}
+		aliasText := aliasResult.Content[0].(*mcp.TextContent).Text
+		if tc.want != "" && !contains(aliasText, tc.want) {
+			t.Fatalf("kb_get alias %q: expected content containing %q", tc.input, tc.want)
+		}
+	}
+
 	// Test: kb_get with invalid doc
 	notFoundResult, err := session.CallTool(ctx, &mcp.CallToolParams{
 		Name:      "kb_get",

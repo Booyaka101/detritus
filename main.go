@@ -71,6 +71,13 @@ func main() {
 	}
 	defer engine.Close()
 
+	// Build reverse alias map: alias -> canonical doc name
+	aliasToDoc := map[string]string{}
+	for name := range engine.DocMetadata() {
+		alias := aliasForDoc(name)
+		aliasToDoc[alias] = name
+	}
+
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "ooo-knowledge-base",
 		Version: version,
@@ -96,14 +103,15 @@ func main() {
 		Name:        "kb_get",
 		Description: engine.ToolDescription(),
 	}, func(ctx context.Context, req *mcp.CallToolRequest, args GetArgs) (*mcp.CallToolResult, any, error) {
+		name := resolveDocName(args.Name, aliasToDoc)
 		if args.Section != "" {
-			content, err := engine.GetSection(args.Name, args.Section)
+			content, err := engine.GetSection(name, args.Section)
 			if err != nil {
 				return errResult(fmt.Sprintf("Document '%s' not found. Use kb_list to see available documents.", args.Name)), nil, nil
 			}
 			return textResult(content), nil, nil
 		}
-		content, err := engine.GetDoc(args.Name)
+		content, err := engine.GetDoc(name)
 		if err != nil {
 			return errResult(fmt.Sprintf("Document '%s' not found. Use kb_list to see available documents.", args.Name)), nil, nil
 		}
@@ -164,6 +172,33 @@ func main() {
 	if err := server.Run(context.Background(), &mcp.StdioTransport{}); err != nil {
 		log.Fatal(err)
 	}
+}
+
+// resolveDocName normalises a requested name into a canonical doc path.
+// It handles exact matches, aliases (e.g. "plan" -> "plan/analyze"),
+// underscore/slash-prefixed variants (e.g. "_truthseeker" -> "meta/truthseeker"),
+// and hyphen-to-slash fallback (e.g. "ooo-package" -> "ooo/package").
+func resolveDocName(raw string, aliasToDoc map[string]string) string {
+	// Strip leading slashes and underscores
+	norm := strings.TrimLeft(raw, "/_")
+
+	// 1. Raw is a known alias (e.g. "plan")
+	if doc, ok := aliasToDoc[raw]; ok {
+		return doc
+	}
+
+	// 2. Normalised form is a known alias (e.g. "_truthseeker" -> "truthseeker")
+	if doc, ok := aliasToDoc[norm]; ok {
+		return doc
+	}
+
+	// 3. Normalised form is already a canonical doc path (e.g. "meta/truthseeker")
+	if strings.Contains(norm, "/") {
+		return norm
+	}
+
+	// 4. Fallback: return normalised form (let GetDoc report not-found)
+	return norm
 }
 
 func aliasForDoc(name string) string {
