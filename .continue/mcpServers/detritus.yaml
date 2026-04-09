@@ -1,7 +1,0 @@
-name: detritus-local
-version: 0.0.1
-schema: v1
-mcpServers:
-  - name: detritus
-    command: /usr/local/bin/detritus
-    args: []

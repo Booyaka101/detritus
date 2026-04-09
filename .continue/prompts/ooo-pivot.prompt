@@ -1,4 +1,0 @@
-name: ooo-pivot
-description: Load detritus knowledge doc ooo/pivot
----
-Use the detritus MCP server and call kb_get with name="ooo/pivot". Then follow the returned guidance strictly.

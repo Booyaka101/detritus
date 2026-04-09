@@ -1,4 +1,0 @@
-name: create
-description: Load detritus knowledge doc scaffold/create
----
-Use the detritus MCP server and call kb_get with name="scaffold/create". Then follow the returned guidance strictly.

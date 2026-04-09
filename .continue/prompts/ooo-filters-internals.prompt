@@ -1,4 +1,0 @@
-name: ooo-filters-internals
-description: Load detritus knowledge doc ooo/filters-internals
----
-Use the detritus MCP server and call kb_get with name="ooo/filters-internals". Then follow the returned guidance strictly.

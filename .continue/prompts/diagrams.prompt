@@ -1,4 +1,0 @@
-name: diagrams
-description: Load detritus knowledge doc plan/diagrams
----
-Use the detritus MCP server and call kb_get with name="plan/diagrams". Then follow the returned guidance strictly.

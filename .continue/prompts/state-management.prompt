@@ -1,4 +1,0 @@
-name: state-management
-description: Load detritus knowledge doc patterns/state-management
----
-Use the detritus MCP server and call kb_get with name="patterns/state-management". Then follow the returned guidance strictly.

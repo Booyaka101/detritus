@@ -1,4 +1,0 @@
-name: testing-go-backend-async
-description: Load detritus knowledge doc testing/go-backend-async
----
-Use the detritus MCP server and call kb_get with name="testing/go-backend-async". Then follow the returned guidance strictly.

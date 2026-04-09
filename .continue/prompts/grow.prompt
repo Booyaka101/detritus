@@ -1,4 +1,0 @@
-name: grow
-description: Load detritus knowledge doc meta/grow
----
-Use the detritus MCP server and call kb_get with name="meta/grow". Then follow the returned guidance strictly.
