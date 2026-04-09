@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"embed"
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"log"
@@ -45,19 +46,34 @@ func main() {
 		case "--init":
 			initPromptFiles()
 			return
+		case "--upsert-mcp":
+			// detritus --upsert-mcp <file> <parent-key> <command-path>
+			if len(os.Args) != 5 {
+				fmt.Fprintln(os.Stderr, "usage: detritus --upsert-mcp <file> <parent-key> <command-path>")
+				os.Exit(1)
+			}
+			upsertMCP(os.Args[2], os.Args[3], os.Args[4])
+			return
+		case "--upsert-vscode-settings":
+			// detritus --upsert-vscode-settings <file>
+			if len(os.Args) != 3 {
+				fmt.Fprintln(os.Stderr, "usage: detritus --upsert-vscode-settings <file>")
+				os.Exit(1)
+			}
+			upsertVSCodeSettings(os.Args[2])
+			return
 		case "--help", "-h":
 			fmt.Println("detritus " + version)
 			fmt.Println("MCP knowledge base server (stdio transport)")
 			fmt.Println("")
 			fmt.Println("Usage:")
-			fmt.Println("  detritus              Start MCP server (used by Windsurf/VS Code)")
-			fmt.Println("  detritus --version    Print version")
-			fmt.Println("  detritus --list       List embedded documents (name<TAB>description)")
-			fmt.Println("  detritus --init       Generate .github/prompts/ for VS Code slash commands")
-			fmt.Println("  detritus --help       Print this help")
-			fmt.Println("")
-			fmt.Println("This server communicates via stdio using the Model Context Protocol.")
-			fmt.Println("Windsurf or VS Code spawns it automatically via MCP config.")
+			fmt.Println("  detritus                                              Start MCP server")
+			fmt.Println("  detritus --version                                    Print version")
+			fmt.Println("  detritus --list                                       List embedded documents")
+			fmt.Println("  detritus --init                                       Generate .github/prompts/")
+			fmt.Println("  detritus --upsert-mcp <file> <key> <cmd>              Upsert MCP config entry")
+			fmt.Println("  detritus --upsert-vscode-settings <file>              Upsert VS Code settings")
+			fmt.Println("  detritus --help                                       Print this help")
 			return
 		default:
 			fmt.Fprintf(os.Stderr, "unknown flag: %s\nRun 'detritus --help' for usage.\n", os.Args[1])
@@ -277,6 +293,93 @@ func initPromptFiles() {
 
 	fmt.Printf("Generated %d prompt files in %s/\n", count, promptsDir)
 	fmt.Println("Reload VS Code window (Developer: Reload Window) to activate slash commands.")
+}
+
+// upsertMCP reads a JSON file, sets .<parentKey>.detritus = {command, args:[]},
+// and writes it back. Creates the file if it doesn't exist.
+func upsertMCP(file, parentKey, command string) {
+	data := map[string]any{}
+	if raw, err := os.ReadFile(file); err == nil {
+		if err := json.Unmarshal(raw, &data); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to parse %s: %v\n", file, err)
+			os.Exit(1)
+		}
+	}
+
+	parent, ok := data[parentKey].(map[string]any)
+	if !ok {
+		parent = map[string]any{}
+	}
+	parent["detritus"] = map[string]any{
+		"command": command,
+		"args":    []any{},
+	}
+	data[parentKey] = parent
+
+	out, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to marshal JSON: %v\n", err)
+		os.Exit(1)
+	}
+	if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to create directory: %v\n", err)
+		os.Exit(1)
+	}
+	if err := os.WriteFile(file, append(out, '\n'), 0o644); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to write %s: %v\n", file, err)
+		os.Exit(1)
+	}
+	fmt.Printf("Updated detritus in %s\n", file)
+}
+
+// upsertVSCodeSettings reads a VS Code settings.json and sets the
+// chat.promptFilesLocations, chat.instructionsFilesLocations, and
+// chat.agentFilesLocations keys. Creates the file if it doesn't exist.
+func upsertVSCodeSettings(file string) {
+	data := map[string]any{}
+	if raw, err := os.ReadFile(file); err == nil {
+		if err := json.Unmarshal(raw, &data); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to parse %s: %v\n", file, err)
+			os.Exit(1)
+		}
+	}
+
+	setLocationMap := func(key string, entries map[string]bool) {
+		existing, _ := data[key].(map[string]any)
+		if existing == nil {
+			existing = map[string]any{}
+		}
+		for k, v := range entries {
+			existing[k] = v
+		}
+		data[key] = existing
+	}
+
+	setLocationMap("chat.promptFilesLocations", map[string]bool{
+		".github/prompts":    false,
+		"~/.copilot/prompts": true,
+	})
+	setLocationMap("chat.instructionsFilesLocations", map[string]bool{
+		"~/.copilot/instructions": true,
+	})
+	setLocationMap("chat.agentFilesLocations", map[string]bool{
+		"~/.copilot/agents": true,
+	})
+
+	out, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to marshal JSON: %v\n", err)
+		os.Exit(1)
+	}
+	if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to create directory: %v\n", err)
+		os.Exit(1)
+	}
+	if err := os.WriteFile(file, append(out, '\n'), 0o644); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to write %s: %v\n", file, err)
+		os.Exit(1)
+	}
+	fmt.Printf("Updated %s\n", file)
 }
 
 func textResult(text string) *mcp.CallToolResult {

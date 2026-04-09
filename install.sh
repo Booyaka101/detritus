@@ -92,6 +92,52 @@ fi
 echo ""
 echo "Installed ${BINARY} ${VERSION} to ${INSTALL_DIR}/${BINARY}"
 
+# Helper: upsert MCP config entry using the binary, or write fresh file as fallback.
+upsert_mcp_or_create() {
+  local file="$1" parent_key="$2" cmd_path="$3"
+  if "$BINARY_PATH" --upsert-mcp "$file" "$parent_key" "$cmd_path" 2>/dev/null; then
+    return
+  fi
+  # Fallback: write a fresh config (binary may be an older version without --upsert-mcp)
+  mkdir -p "$(dirname "$file")"
+  cat > "$file" <<EOF
+{
+  "${parent_key}": {
+    "detritus": {
+      "command": "${cmd_path}",
+      "args": []
+    }
+  }
+}
+EOF
+  echo "Created ${file}"
+}
+
+# Helper: upsert VS Code settings using the binary, or write fresh file as fallback.
+upsert_vscode_settings_or_create() {
+  local file="$1"
+  if "$BINARY_PATH" --upsert-vscode-settings "$file" 2>/dev/null; then
+    return
+  fi
+  # Fallback: write fresh settings
+  mkdir -p "$(dirname "$file")"
+  cat > "$file" <<EOF
+{
+  "chat.promptFilesLocations": {
+    ".github/prompts": false,
+    "~/.copilot/prompts": true
+  },
+  "chat.instructionsFilesLocations": {
+    "~/.copilot/instructions": true
+  },
+  "chat.agentFilesLocations": {
+    "~/.copilot/agents": true
+  }
+}
+EOF
+  echo "Created ${file}"
+}
+
 # Auto-configure mcp_config.json
 MCP_CONFIG="$HOME/.codeium/windsurf/mcp_config.json"
 MCP_DIR=$(dirname "$MCP_CONFIG")
@@ -106,36 +152,7 @@ fi
 
 mkdir -p "$MCP_DIR"
 
-if [ -f "$MCP_CONFIG" ]; then
-  if command -v python3 >/dev/null 2>&1; then
-    python3 -c "
-import json, sys
-with open('$MCP_CONFIG', 'r') as f:
-    config = json.load(f)
-config.setdefault('mcpServers', {})
-config['mcpServers']['detritus'] = {'command': '$BINARY_PATH_JSON', 'args': [], 'disabled': False}
-with open('$MCP_CONFIG', 'w') as f:
-    json.dump(config, f, indent=2)
-print('Updated detritus in $MCP_CONFIG')
-"
-  else
-    echo "python3 not found, please add manually to ${MCP_CONFIG}:"
-    echo '  "detritus": { "command": "'${BINARY_PATH}'", "args": [], "disabled": false }'
-  fi
-else
-  cat > "$MCP_CONFIG" <<EOF
-{
-  "mcpServers": {
-    "detritus": {
-      "command": "${BINARY_PATH_JSON}",
-      "args": [],
-      "disabled": false
-    }
-  }
-}
-EOF
-  echo "Created ${MCP_CONFIG}"
-fi
+upsert_mcp_or_create "$MCP_CONFIG" mcpServers "$BINARY_PATH_JSON"
 
 echo ""
 echo "MCP config: ${MCP_CONFIG}"
@@ -377,34 +394,7 @@ configure_verdent() {
   local VERDENT_RULES="${VERDENT_DIR}/VERDENT.md"
   mkdir -p "$VERDENT_DIR"
 
-  if [ -f "$VERDENT_MCP" ] && command -v python3 >/dev/null 2>&1; then
-    python3 - <<PY
-import json
-path = "$VERDENT_MCP"
-with open(path, 'r', encoding='utf-8') as f:
-    data = json.load(f)
-data.setdefault('mcpServers', {})
-data['mcpServers']['detritus'] = {'command': '$BINARY_PATH_JSON', 'args': []}
-with open(path, 'w', encoding='utf-8') as f:
-    json.dump(data, f, indent=2)
-print(f'Updated detritus in {path}')
-PY
-  elif [ -f "$VERDENT_MCP" ]; then
-    echo "python3 not found, please add manually to ${VERDENT_MCP}:"
-    echo '  "detritus": { "command": "'${BINARY_PATH_JSON}'", "args": [] }'
-  else
-    cat > "$VERDENT_MCP" <<EOF
-{
-  "mcpServers": {
-    "detritus": {
-      "command": "${BINARY_PATH_JSON}",
-      "args": []
-    }
-  }
-}
-EOF
-    echo "Created ${VERDENT_MCP}"
-  fi
+  upsert_mcp_or_create "$VERDENT_MCP" mcpServers "$BINARY_PATH_JSON"
 
   local RULE_BLOCK_FILE="${TMP}/verdent_detritus_rules.md"
   {
@@ -458,89 +448,11 @@ configure_vscode_mcp() {
 
   local VSCODE_MCP="${VSCODE_DIR}/mcp.json"
 
-  if [ -f "$VSCODE_MCP" ]; then
-    if command -v python3 >/dev/null 2>&1; then
-      python3 -c "
-import json, sys
-with open('$VSCODE_MCP', 'r') as f:
-    config = json.load(f)
-config.setdefault('servers', {})
-config['servers']['detritus'] = {'command': '$BINARY_PATH_JSON', 'args': []}
-with open('$VSCODE_MCP', 'w') as f:
-    json.dump(config, f, indent=2)
-print('Updated detritus in $VSCODE_MCP')
-"
-    else
-      echo "python3 not found, please add manually to ${VSCODE_MCP}:"
-      echo '  "detritus": { "command": "'${BINARY_PATH_JSON}'", "args": [] }'
-    fi
-  else
-    cat > "$VSCODE_MCP" <<EOF
-{
-  "servers": {
-    "detritus": {
-      "command": "${BINARY_PATH_JSON}",
-      "args": []
-    }
-  }
-}
-EOF
-    echo "Created ${VSCODE_MCP}"
-  fi
+  upsert_mcp_or_create "$VSCODE_MCP" servers "$BINARY_PATH_JSON"
 
   # Configure a single prompt source to avoid duplicate slash commands in multi-root workspaces.
   local VSCODE_SETTINGS="${VSCODE_DIR}/settings.json"
-  if command -v python3 >/dev/null 2>&1; then
-    python3 - <<PY
-import json, os
-path = os.path.expanduser("$VSCODE_SETTINGS")
-data = {}
-if os.path.exists(path):
-    try:
-        with open(path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-    except Exception:
-        data = {}
-locs = data.get('chat.promptFilesLocations')
-if not isinstance(locs, dict):
-    locs = {}
-locs['.github/prompts'] = False
-locs['~/.copilot/prompts'] = True
-data['chat.promptFilesLocations'] = locs
-instr = data.get('chat.instructionsFilesLocations')
-if not isinstance(instr, dict):
-    instr = {}
-instr['~/.copilot/instructions'] = True
-data['chat.instructionsFilesLocations'] = instr
-agents = data.get('chat.agentFilesLocations')
-if not isinstance(agents, dict):
-    agents = {}
-agents['~/.copilot/agents'] = True
-data['chat.agentFilesLocations'] = agents
-with open(path, 'w', encoding='utf-8') as f:
-    json.dump(data, f, indent=2)
-print(f'Updated {path} (chat.promptFilesLocations, chat.instructionsFilesLocations, chat.agentFilesLocations)')
-PY
-  elif [ ! -f "$VSCODE_SETTINGS" ]; then
-    cat > "$VSCODE_SETTINGS" <<EOF
-{
-  "chat.promptFilesLocations": {
-    ".github/prompts": false,
-    "~/.copilot/prompts": true
-  },
-  "chat.instructionsFilesLocations": {
-    "~/.copilot/instructions": true
-  },
-  "chat.agentFilesLocations": {
-    "~/.copilot/agents": true
-  }
-}
-EOF
-    echo "Created ${VSCODE_SETTINGS}"
-  else
-    echo "Warning: python3 not found, could not update ${VSCODE_SETTINGS}."
-    echo "Please set chat.promptFilesLocations manually to use ~/.copilot/prompts."
-  fi
+  upsert_vscode_settings_or_create "$VSCODE_SETTINGS"
 
   # Clean up old user-level prompt files (no longer used — prompts are workspace-level now)
   local OLD_PROMPTS="${VSCODE_DIR}/prompts"
@@ -637,35 +549,7 @@ configure_cursor_mcp() {
 
   local CURSOR_MCP="${CURSOR_DIR}/mcp.json"
 
-  if [ -f "$CURSOR_MCP" ]; then
-    if command -v python3 >/dev/null 2>&1; then
-      python3 -c "
-import json, sys
-with open('$CURSOR_MCP', 'r') as f:
-    config = json.load(f)
-config.setdefault('mcpServers', {})
-config['mcpServers']['detritus'] = {'command': '$BINARY_PATH_JSON', 'args': []}
-with open('$CURSOR_MCP', 'w') as f:
-    json.dump(config, f, indent=2)
-print('Updated detritus in $CURSOR_MCP')
-"
-    else
-      echo "python3 not found, please add manually to ${CURSOR_MCP}:"
-      echo '  "detritus": { "command": "'${BINARY_PATH_JSON}'", "args": [] }'
-    fi
-  else
-    cat > "$CURSOR_MCP" <<EOF
-{
-  "mcpServers": {
-    "detritus": {
-      "command": "${BINARY_PATH_JSON}",
-      "args": []
-    }
-  }
-}
-EOF
-    echo "Created ${CURSOR_MCP}"
-  fi
+  upsert_mcp_or_create "$CURSOR_MCP" mcpServers "$BINARY_PATH_JSON"
 
   echo "Cursor MCP config: ${CURSOR_MCP}"
 }
