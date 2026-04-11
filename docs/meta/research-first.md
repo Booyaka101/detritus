@@ -11,8 +11,6 @@ triggers:
 when: Agent is uncertain about how something works and is about to ask the user instead of researching
 related:
   - truthseeker
-  - ooo-package
-  - ooo-filters-internals
 ---
 
 # Research First — Never Ask What You Can Look Up
@@ -21,7 +19,7 @@ related:
 
 Before asking the user how something works, exhaust all available resources:
 
-1. **KB docs** — `kb_search` and `kb_get` cover ooo, pivot, auth, testing, and more
+1. **KB docs** — `kb_search` and `kb_get` cover all available knowledge base topics
 2. **Source code** — if the repo is in the workspace, grep and read the implementation
 3. **Existing docs/comments** — check inline documentation, READMEs, godoc
 

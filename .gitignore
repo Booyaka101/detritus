@@ -1,5 +1,10 @@
 detritus
 ooo-kb
 dist/
-models/
 generated/search.bleve/
+.verdent/
+.github/prompts/
+skills/
+agents/
+instructions/
+templates/

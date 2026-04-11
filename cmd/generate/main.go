@@ -4,18 +4,15 @@ import (
 	"encoding/gob"
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
+	"unicode"
 
 	"github.com/benitogf/detritus/internal/chunk"
 	"github.com/blevesearch/bleve/v2"
-	"github.com/knights-analytics/hugot"
-)
-
-const (
-	modelName = "KnightsAnalytics/all-MiniLM-L6-v2"
-	batchSize = 32
 )
 
 type ChunkMeta struct {
@@ -25,10 +22,9 @@ type ChunkMeta struct {
 }
 
 type GeneratedData struct {
-	Chunks     []ChunkMeta
-	Vectors    [][]float32
-	BlevePath  string
-	ToolDesc   string
+	Chunks      []ChunkMeta
+	BlevePath   string
+	ToolDesc    string
 	DocMetadata map[string]DocMeta
 }
 
@@ -43,7 +39,6 @@ type DocMeta struct {
 
 func main() {
 	docsDir := "docs"
-	modelsDir := "models"
 	outputDir := "generated"
 
 	if err := os.MkdirAll(outputDir, 0o755); err != nil {
@@ -57,6 +52,9 @@ func main() {
 	}
 	log.Printf("parsed %d docs", len(docs))
 
+	log.Println("enriching triggers with auto-extracted keywords...")
+	enrichTriggers(docs)
+
 	chunks := chunk.ChunkDocs(docs)
 	log.Printf("chunked into %d sections", len(chunks))
 
@@ -69,23 +67,6 @@ func main() {
 	}
 	index.Close()
 	log.Printf("bleve index built at %s", blevePath)
-
-	log.Println("downloading model (if needed)...")
-	modelPath := filepath.Join(modelsDir, strings.ReplaceAll(modelName, "/", "_"))
-	if _, err := os.Stat(modelPath); os.IsNotExist(err) {
-		modelPath, err = hugot.DownloadModel(modelName, modelsDir, hugot.NewDownloadOptions())
-		if err != nil {
-			log.Fatalf("download model: %v", err)
-		}
-	}
-	log.Printf("model at %s", modelPath)
-
-	log.Println("generating embeddings...")
-	vectors, err := generateEmbeddings(modelPath, chunks)
-	if err != nil {
-		log.Fatalf("embeddings: %v", err)
-	}
-	log.Printf("generated %d vectors of dim %d", len(vectors), len(vectors[0]))
 
 	docMetadata := buildDocMetadata(docs)
 	toolDesc := buildToolDescription(docs)
@@ -101,7 +82,6 @@ func main() {
 
 	data := GeneratedData{
 		Chunks:      metas,
-		Vectors:     vectors,
 		BlevePath:   blevePath,
 		ToolDesc:    toolDesc,
 		DocMetadata: docMetadata,
@@ -117,6 +97,7 @@ func main() {
 		log.Fatalf("encode data: %v", err)
 	}
 	log.Printf("wrote %s", dataPath)
+
 	log.Println("done")
 }
 
@@ -168,46 +149,6 @@ func buildBleveIndex(path string, docs []chunk.Doc, chunks []chunk.Chunk) (bleve
 	return index, nil
 }
 
-func generateEmbeddings(modelPath string, chunks []chunk.Chunk) ([][]float32, error) {
-	session, err := hugot.NewGoSession()
-	if err != nil {
-		return nil, fmt.Errorf("hugot session: %w", err)
-	}
-	defer session.Destroy()
-
-	config := hugot.FeatureExtractionConfig{
-		ModelPath:    modelPath,
-		Name:         "embedder",
-		OnnxFilename: "model.onnx",
-	}
-	pipeline, err := hugot.NewPipeline(session, config)
-	if err != nil {
-		return nil, fmt.Errorf("hugot pipeline: %w", err)
-	}
-
-	texts := make([]string, len(chunks))
-	for i, c := range chunks {
-		texts[i] = c.DocName + " " + c.Section + " " + c.Content
-	}
-
-	var allVectors [][]float32
-	for i := 0; i < len(texts); i += batchSize {
-		end := i + batchSize
-		if end > len(texts) {
-			end = len(texts)
-		}
-		batch := texts[i:end]
-		result, err := pipeline.RunPipeline(batch)
-		if err != nil {
-			return nil, fmt.Errorf("hugot run batch %d: %w", i/batchSize, err)
-		}
-		allVectors = append(allVectors, result.Embeddings...)
-		log.Printf("  embedded %d/%d chunks", len(allVectors), len(texts))
-	}
-
-	return allVectors, nil
-}
-
 func buildDocMetadata(docs []chunk.Doc) map[string]DocMeta {
 	metadata := make(map[string]DocMeta, len(docs))
 	for _, doc := range docs {
@@ -240,7 +181,7 @@ func buildToolDescription(docs []chunk.Doc) string {
 		categoryDocs[cat] = append(categoryDocs[cat], doc)
 	}
 
-	categoryOrder := []string{"core", "patterns", "testing", "principles", "meta", "scaffold", "plan", "style", "other"}
+	categoryOrder := []string{"core", "patterns", "testing", "principles", "meta", "plan", "style", "other"}
 	for _, cat := range categoryOrder {
 		catDocs, ok := categoryDocs[cat]
 		if !ok {
@@ -256,4 +197,100 @@ func buildToolDescription(docs []chunk.Doc) string {
 	}
 
 	return b.String()
+}
+
+// enrichTriggers auto-generates trigger keywords from doc content using TF-IDF
+// and merges them with the manually curated triggers from frontmatter.
+func enrichTriggers(docs []chunk.Doc) {
+	df := map[string]int{}
+	docTerms := make([]map[string]int, len(docs))
+
+	for i, doc := range docs {
+		tf := termFrequency(doc.RawContent)
+		docTerms[i] = tf
+		for term := range tf {
+			df[term]++
+		}
+	}
+
+	n := float64(len(docs))
+	for i, doc := range docs {
+		type scored struct {
+			term  string
+			score float64
+		}
+		var candidates []scored
+		tf := docTerms[i]
+		for term, count := range tf {
+			if df[term] < 1 {
+				continue
+			}
+			idf := math.Log(n / float64(df[term]))
+			tfidf := float64(count) * idf
+			candidates = append(candidates, scored{term, tfidf})
+		}
+		sort.Slice(candidates, func(a, b int) bool {
+			return candidates[a].score > candidates[b].score
+		})
+
+		existing := map[string]bool{}
+		for _, t := range doc.Frontmatter.Triggers {
+			existing[strings.ToLower(t)] = true
+		}
+
+		added := 0
+		maxAuto := 10
+		for _, c := range candidates {
+			if added >= maxAuto {
+				break
+			}
+			if existing[c.term] {
+				continue
+			}
+			docs[i].Frontmatter.Triggers = append(docs[i].Frontmatter.Triggers, c.term)
+			added++
+		}
+		log.Printf("  %s: %d manual + %d auto triggers", doc.Name, len(existing), added)
+	}
+}
+
+var stopWords = map[string]bool{
+	"the": true, "a": true, "an": true, "and": true, "or": true, "but": true,
+	"in": true, "on": true, "at": true, "to": true, "for": true, "of": true,
+	"with": true, "by": true, "from": true, "is": true, "are": true, "was": true,
+	"were": true, "be": true, "been": true, "being": true, "have": true, "has": true,
+	"had": true, "do": true, "does": true, "did": true, "will": true, "would": true,
+	"could": true, "should": true, "may": true, "might": true, "shall": true,
+	"can": true, "it": true, "its": true, "this": true, "that": true, "these": true,
+	"those": true, "not": true, "no": true, "if": true, "then": true, "else": true,
+	"when": true, "where": true, "how": true, "what": true, "which": true, "who": true,
+	"all": true, "each": true, "every": true, "any": true, "some": true, "such": true,
+	"only": true, "also": true, "just": true, "than": true, "both": true, "into": true,
+	"about": true, "up": true, "out": true, "so": true, "as": true, "more": true,
+	"most": true, "very": true, "too": true, "here": true, "there": true, "you": true,
+	"your": true, "we": true, "our": true, "they": true, "them": true, "their": true,
+	"my": true, "me": true, "he": true, "she": true, "him": true, "her": true,
+	"use": true, "used": true, "using": true, "see": true, "like": true, "make": true,
+	"new": true, "one": true, "two": true, "first": true, "get": true, "set": true,
+	"example": true, "need": true, "want": true, "take": true, "run": true,
+}
+
+func termFrequency(text string) map[string]int {
+	tf := map[string]int{}
+	words := strings.FieldsFunc(strings.ToLower(text), func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '-' && r != '_'
+	})
+	for _, w := range words {
+		if len(w) < 3 {
+			continue
+		}
+		if stopWords[w] {
+			continue
+		}
+		if w == "true" || w == "false" || w == "nil" || w == "null" || w == "string" {
+			continue
+		}
+		tf[w]++
+	}
+	return tf
 }

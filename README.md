@@ -1,23 +1,8 @@
 # detritus
 
-MCP knowledge base server + Agent Plugin. Exposes coding knowledge as MCP tools and Agent Skills for AI assistants across VS Code, Windsurf, Cursor, and Claude Code.
-
-## Architecture
-
-detritus delivers knowledge through two complementary layers:
-
-1. **Agent Plugin** (`plugin.json`, `skills/`, `agents/`, `instructions/`) — Skills, custom agents, and always-on instructions. Works in VS Code (Copilot) and Claude Code natively.
-2. **MCP Server** (Go binary, stdio transport) — Semantic search across all docs via `kb_list`, `kb_get`, `kb_search` tools. Works in any editor with MCP support.
+MCP knowledge base server. Exposes coding knowledge as MCP tools (`kb_list`, `kb_get`, `kb_search`) for AI assistants across VS Code, Windsurf, Cursor, Verdent, and Cursor.
 
 ## Quick Install
-
-Paste this into your AI assistant (Copilot Chat, Windsurf Cascade, Cursor, etc.):
-
-> Follow the setup instructions at https://raw.githubusercontent.com/benitogf/detritus/main/templates/workflows/setup-detritus.md
-
-This handles binary install, MCP config, and editor integration.
-
-### Manual Install
 
 **Linux / macOS / Windows (Git Bash):**
 ```bash
@@ -29,60 +14,36 @@ curl -sSL https://raw.githubusercontent.com/benitogf/detritus/main/install.sh | 
 irm https://raw.githubusercontent.com/benitogf/detritus/main/install.ps1 | iex
 ```
 
-The install script downloads the binary and configures:
+Or download the binary directly from [Releases](https://github.com/benitogf/detritus/releases), place it in your PATH, then run:
+
+```bash
+detritus --setup
+```
+
+Both methods download the binary and call `detritus --setup`, which auto-detects installed editors and configures:
+
 - **Windsurf**: `~/.codeium/windsurf/mcp_config.json`
-- **VS Code**: `~/.config/Code/User/mcp.json` + shared prompts/instructions
-- **Cursor**: `~/.config/Cursor/User/mcp.json` (Linux), `%APPDATA%\Cursor\User\mcp.json` (Windows)
-- **Continue**: `~/.continue/mcpServers/` + `~/.continue/prompts/`
-
-If Verdent is detected, it also configures Verdent globally:
-- **Verdent MCP config**: `~/.verdent/mcp.json`
-- **Verdent always-on curated rules**: `~/.verdent/VERDENT.md` (detritus-managed rules block)
-
-If Continue is detected, it also configures Continue globally:
-- **Continue MCP config**: `~/.continue/mcpServers/detritus.yaml`
-- **Continue slash prompts**: `~/.continue/prompts/*.prompt`
-
-It also configures `chat.promptFilesLocations` to load prompts from `~/.copilot/prompts` and disable `.github/prompts` by default to prevent duplicate slash commands in multi-root workspaces.
-It configures `chat.instructionsFilesLocations` to load `~/.copilot/instructions`, enabling inline multi-command token routing.
-
-For Verdent, the installer keeps detritus curated by default (global rules) while preserving manual invocation patterns (for example `/plan`, `/grow`, `/create`, `/testing`) in prompts.
+- **VS Code**: `mcp.json` + shared prompts/instructions/agent in `~/.copilot/`
+- **Cursor**: `mcp.json`
+- **Verdent**: `~/.verdent/mcp.json` + `VERDENT.md` rules + skills in `~/.verdent/skills/`
 
 Restart your editor after install.
 
-## Agent Plugin
+## Usage
 
-The repository itself is an Agent Plugin. In VS Code/Claude Code, the plugin provides:
+Once installed, the detritus MCP server is available in your editor. Use the slash commands or ask directly:
 
-### Skills (invokable)
-
-| Skill | Description |
-|-------|-------------|
-| `/truthseeker` | Elevated rigor — evidence-based reasoning, push back on assumptions |
+| Slash command | Knowledge doc |
+|---------------|---------------|
+| `/truthseeker` | Evidence-based reasoning, push back on assumptions |
 | `/plan` | Requirements analysis workflow |
-| `/plan-export` | Export planning docs with Mermaid diagrams |
-| `/diagrams` | Mermaid diagram quick reference |
-| `/create` | Scaffold a new project |
 | `/grow` | KB improvement from conversation corrections |
 | `/optimize` | KB retrieval optimization |
 | `/research-first` | Exhaust resources before asking the user |
 | `/testing` | Testing decision table |
 | `/line-of-sight` | Flat code style — early returns, no deep nesting |
-| `/setup-detritus` | Installation workflow |
-
-### Skills (auto-loaded)
-
-These are loaded automatically when relevant — no manual invocation needed:
-
-ooo-package, ooo-auth, ooo-nopog, ooo-pivot, ooo-client-js, ooo-filters-internals, coding-style, go-modern, async-events, state-management, go-backend-async, go-backend-mock, go-backend-e2e
-
-### Custom Agent
-
-Select the **detritus** agent for a session with truthseeker principles, research-first behavior, and MCP knowledge base access pre-configured.
-
-### Always-On Instructions
-
-The `instructions/detritus.instructions.md` file applies to all files (`applyTo: "**"`) with distilled guardrails: push back with evidence, research before asking, prove before acting.
+| `/coding-style` | Naming, error handling, formatting, commits |
+| `/go-modern` | Modern Go idioms (1.22+/1.24+) |
 
 ## MCP Tools
 
@@ -94,16 +55,16 @@ The `instructions/detritus.instructions.md` file applies to all files (`applyTo:
 
 ## Included Documents
 
-### Core
-- **ooo-package** — Server setup, filters, CRUD, WebSocket subscriptions, custom endpoints
+### Principles
+- **truthseeker** — Evidence-based reasoning, pushback, intellectual humility
+- **research-first** — Exhaust available resources before asking
 
-### Storage
-- **ooo-nopog** — PostgreSQL storage adapter
-
-### Infrastructure
-- **ooo-pivot** — AP distributed multi-instance sync
-- **ooo-auth** — JWT authentication
-- **ooo-client-js** — JavaScript/React WebSocket client
+### Patterns
+- **coding-style** — Naming, error handling, formatting, commits
+- **go-modern** — Modern Go idioms (1.22+/1.24+)
+- **async-events** — Channel-based pub/sub, backpressure
+- **state-management** — Single source of truth, immutable updates
+- **line-of-sight** — Early returns, flat code structure
 
 ### Testing
 - **testing** — Testing index and decision table
@@ -111,29 +72,25 @@ The `instructions/detritus.instructions.md` file applies to all files (`applyTo:
 - **go-backend-mock** — Minimal mocking at boundaries
 - **go-backend-e2e** — End-to-end lifecycle tests
 
-### Patterns
-- **go-modern** — Modern Go idioms (1.22+/1.24+)
-- **coding-style** — Naming, error handling, formatting, commits
-- **async-events** — Channel-based pub/sub, backpressure
-- **state-management** — Single source of truth, immutable updates
-- **line-of-sight** — Early returns, flat code structure
-
-### Principles
-- **truthseeker** — Evidence-based reasoning, pushback, intellectual humility
-- **research-first** — Exhaust available resources before asking
+### ooo ecosystem
+- **ooo-package** — Server setup, filters, CRUD, WebSocket subscriptions
+- **ooo-nopog** — PostgreSQL storage adapter
+- **ooo-pivot** — AP distributed multi-instance sync
+- **ooo-auth** — JWT authentication
+- **ooo-client-js** — JavaScript/React WebSocket client
+- **ooo-filters-internals** — Filter bypass, direct storage, LimitFilter internals
 
 ## How It Works
 
 All documents are embedded in the binary at compile time (`embed.FS`). No external files or runtime dependencies.
 
-The `kb_get` tool description contains keyword-packed summaries. When the AI sees relevant keywords in your prompt, it automatically calls `kb_get` — no manual invocation needed.
-
-Agent Skills provide the same knowledge in a format native to VS Code/Claude Code, with YAML frontmatter controlling invocability and auto-loading behavior.
+The `kb_get` tool description contains keyword-packed summaries. When the AI sees relevant keywords in your prompt, it automatically calls `kb_get` — no manual invocation needed. Slash commands (`/plan`, `/grow`, etc.) also trigger the relevant doc.
 
 ## Troubleshooting
 
 ```bash
 detritus --version
+detritus --setup --dry-run   # preview what would be written without touching disk
 ```
 
 ### Windsurf
@@ -150,10 +107,16 @@ detritus --version
 1. Config: `~/.config/Cursor/User/mcp.json` (Linux), `%APPDATA%\Cursor\User\mcp.json` (Windows)
 2. Uses **`"mcpServers"`** key
 
+### Verdent
+1. Config: `~/.verdent/mcp.json`
+2. Rules: `~/.verdent/VERDENT.md`
+3. Skills: `~/.verdent/skills/`
+
 ## Development
 
 ```bash
-go test -v
+go generate ./...   # rebuild index + model
+go test ./...
 go build -o detritus .
 ```
 
@@ -162,6 +125,6 @@ go build -o detritus .
 Uses [goreleaser](https://goreleaser.com/) for cross-platform builds. Push a tag to trigger GitHub Actions:
 
 ```bash
-git tag v3.0.0
-git push origin v3.0.0
+git tag v3.1.0
+git push origin v3.1.0
 ```

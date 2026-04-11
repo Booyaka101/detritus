@@ -18,15 +18,6 @@ func buildTestData() GeneratedData {
 			{DocName: "testing/go-backend-async", Section: "", Position: 0},
 			{DocName: "testing/go-backend-async", Section: "WaitGroup Patterns", Position: 1},
 		},
-		Vectors: [][]float32{
-			makeVec(0.1, 0.2, 0.3),
-			makeVec(0.4, 0.5, 0.6),
-			makeVec(0.7, 0.8, 0.9),
-			makeVec(0.2, 0.3, 0.1),
-			makeVec(0.5, 0.6, 0.4),
-			makeVec(0.3, 0.1, 0.2),
-			makeVec(0.6, 0.4, 0.5),
-		},
 		ToolDesc: "Get full knowledge document by name.\nCORE: ooo/package (ooo, server setup, filters)\n",
 		DocMetadata: map[string]DocMeta{
 			"ooo/package": {
@@ -49,16 +40,6 @@ func buildTestData() GeneratedData {
 			},
 		},
 	}
-}
-
-func makeVec(vals ...float32) []float32 {
-	v := make([]float32, 384)
-	for i, val := range vals {
-		if i < len(v) {
-			v[i] = val
-		}
-	}
-	return v
 }
 
 func buildTestFS() fstest.MapFS {
@@ -193,6 +174,39 @@ func TestGetSection(t *testing.T) {
 	t.Log("section content:", content)
 }
 
+func TestGetSections(t *testing.T) {
+	engine := createTestEngine(t)
+	defer engine.Close()
+
+	sections, err := engine.GetSections("ooo/package")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sections) == 0 {
+		t.Fatal("expected at least one section")
+	}
+	found := false
+	for _, s := range sections {
+		t.Logf("section: %q", s)
+		if s == "Server Setup" || s == "Filters" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("expected Server Setup or Filters in sections")
+	}
+}
+
+func TestGetSectionsNotFound(t *testing.T) {
+	engine := createTestEngine(t)
+	defer engine.Close()
+
+	_, err := engine.GetSections("nonexistent/doc")
+	if err == nil {
+		t.Fatal("expected error for nonexistent doc")
+	}
+}
+
 func TestToolDescription(t *testing.T) {
 	engine := createTestEngine(t)
 	defer engine.Close()
@@ -227,20 +241,5 @@ func TestMMRDiversity(t *testing.T) {
 		if uniqueDocs < 2 {
 			t.Fatalf("MMR should diversify results, but all %d results from same doc", len(results))
 		}
-	}
-}
-
-func TestCosineSimilarity(t *testing.T) {
-	a := []float32{1, 0, 0}
-	b := []float32{1, 0, 0}
-	sim := cosineSimilarity(a, b)
-	if sim < 0.99 {
-		t.Fatalf("identical vectors should have similarity ~1.0, got %f", sim)
-	}
-
-	c := []float32{0, 1, 0}
-	sim = cosineSimilarity(a, c)
-	if sim > 0.01 {
-		t.Fatalf("orthogonal vectors should have similarity ~0.0, got %f", sim)
 	}
 }

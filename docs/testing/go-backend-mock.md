@@ -144,7 +144,7 @@ func TestWorker(t *testing.T) {
 |-----------|--------------|--------|
 | Business logic | **Real** | This is what you're testing |
 | State management | **Real** | Critical behavior |
-| Storage (ooo) | **Real** | Use test server with temp dir |
+| Storage | **Real** | Use test server with temp dir |
 | WebSocket subscriptions | **Real** | Test actual event flow |
 | Status updates | **Real** | Verify state transitions |
 | External network calls | **Mock** | Boundary to external system |
@@ -229,7 +229,7 @@ See `/testing-go-backend-async` (`testing/go-backend-async`) for full WaitGroup 
 1. [ ] Identified the external boundary (what actually needs mocking)
 2. [ ] Mock uses simple state toggle, not behavior simulation
 3. [ ] All business logic runs through real code paths
-4. [ ] Storage uses real ooo server with temp directory
+4. [ ] Storage uses real server with temp directory
 5. [ ] Mock provides callback hooks for async sync
 6. [ ] Mock tracks records for assertions
 

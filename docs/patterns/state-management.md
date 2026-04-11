@@ -19,14 +19,13 @@ triggers:
 when: Writing code that reads, modifies, or writes shared state (metrics, flags, state, settings)
 related:
   - patterns/coding-style
-  - ooo/package
 ---
 
 # State Mutation Patterns
 
-> ## ⚠️ AUTOMATIC TRIGGER RULE
+> ## AUTOMATIC TRIGGER RULE
 >
-> When writing code that mutates shared state, Cascade MUST:
+> When writing code that mutates shared state, MUST:
 > 1. **Never write a value that will be immediately overwritten** — consolidate into one write
 > 2. **Use a single function** for conditional mutations on the same state
 > 3. **Deferred actions use persistent flags** — not in-memory state that can be lost
@@ -40,23 +39,22 @@ If two writes to the same key happen in sequence and the second overwrites the f
 ### Rule: Consolidate sequential writes into one
 
 ```go
-// ❌ Two writes — first is wasted
-metrics := GetMetrics(server)
+// BAD: Two writes — first is wasted
+metrics := store.GetMetrics()
 metrics.Count++
-SetMetrics(server, metrics)   // write 1
+store.SetMetrics(metrics)   // write 1
 // ... then later in same flow:
-SetMetrics(server, Metrics{}) // write 2 overwrites write 1
+store.SetMetrics(Metrics{}) // write 2 overwrites write 1
 
-// ✅ Single function decides what to write
-func MetricsTick(server *ooo.Server, increment bool) {
-    _, err := ooo.Get[PendingReset](server, pendingKey)
-    if err == nil {
-        ResetMetrics(server)
+// GOOD: Single function decides what to write
+func MetricsTick(store Store, increment bool) {
+    if store.HasPendingReset() {
+        ResetMetrics(store)
     }
     if increment {
-        metrics := GetMetrics(server)
+        metrics := store.GetMetrics()
         metrics.Count++
-        SetMetrics(server, metrics)
+        store.SetMetrics(metrics)
     }
 }
 ```
@@ -64,18 +62,18 @@ func MetricsTick(server *ooo.Server, increment bool) {
 ### Rule: Read state before deciding whether to write
 
 ```go
-// ❌ Always writes, even when value hasn't changed
-func UpdateStatus(server *ooo.Server, status string) {
-    ooo.Set(server, "status", Status{Value: status})
+// BAD: Always writes, even when value hasn't changed
+func UpdateStatus(store Store, status string) {
+    store.Set("status", Status{Value: status})
 }
 
-// ✅ Only writes when needed
-func UpdateStatus(server *ooo.Server, status string) {
-    current, err := ooo.Get[Status](server, "status")
+// GOOD: Only writes when needed
+func UpdateStatus(store Store, status string) {
+    current, err := store.Get("status")
     if err == nil && current.Value == status {
         return
     }
-    ooo.Set(server, "status", Status{Value: status})
+    store.Set("status", Status{Value: status})
 }
 ```
 
@@ -88,26 +86,26 @@ When a state value can be mutated by multiple conditions (increment, clear, rese
 ### Rule: One function owns the decision of what to write
 
 ```go
-// ❌ Caller decides — logic scattered
+// BAD: Caller decides — logic scattered
 if shouldReset {
-    SetMetrics(server, Metrics{})
+    store.SetMetrics(Metrics{})
 } else if shouldIncrement {
-    m := GetMetrics(server)
+    m := store.GetMetrics()
     m.Count++
-    SetMetrics(server, m)
+    store.SetMetrics(m)
 }
 
-// ✅ Single function owns it
-MetricsTick(server, shouldIncrement)
+// GOOD: Single function owns it
+MetricsTick(store, shouldIncrement)
 ```
 
 ### Rule: Cleanup related state in the same function
 
 ```go
-// ✅ ResetMetrics owns all side effects of resetting
-func ResetMetrics(server *ooo.Server) {
-    SetMetrics(server, Metrics{})
-    ooo.Delete(server, pendingKey) // also cancels any pending schedule
+// GOOD: ResetMetrics owns all side effects of resetting
+func ResetMetrics(store Store) {
+    store.SetMetrics(Metrics{})
+    store.Delete(pendingKey) // also cancels any pending schedule
 }
 ```
 
@@ -115,32 +113,31 @@ func ResetMetrics(server *ooo.Server) {
 
 ## 3. Deferred Actions via Persistent Flags
 
-When an action should happen later (e.g., "reset on next state transition"), use a persistent flag in storage.
+When an action should happen later (e.g., "reset on next state transition"), use a persistent flag in storage — not in-memory state that can be lost on restart.
 
 ### Rule: Use storage flags, not in-memory state
 
 ```go
-// ❌ In-memory flag — lost on restart
+// BAD: In-memory flag — lost on restart
 var pendingReset bool
 
-// ✅ Persistent flag in storage
-func ScheduleResetMetrics(server *ooo.Server) {
-    ooo.Set(server, "pending/reset/metrics/myservice", PendingReset{Pending: true})
+// GOOD: Persistent flag in storage
+func ScheduleResetMetrics(store Store) {
+    store.Set("pending/reset/metrics", PendingReset{Pending: true})
 }
 ```
 
 ### Rule: The consumer of the flag must delete it after acting
 
 ```go
-func MetricsTick(server *ooo.Server, increment bool) {
-    _, err := ooo.Get[PendingReset](server, pendingKey)
-    if err == nil {
-        ResetMetrics(server) // ResetMetrics deletes the flag internally
+func MetricsTick(store Store, increment bool) {
+    if store.HasPendingReset() {
+        ResetMetrics(store) // ResetMetrics deletes the flag internally
     }
     if increment {
-        metrics := GetMetrics(server)
+        metrics := store.GetMetrics()
         metrics.Count++
-        SetMetrics(server, metrics)
+        store.SetMetrics(metrics)
     }
 }
 ```
@@ -150,10 +147,10 @@ func MetricsTick(server *ooo.Server, increment bool) {
 If an immediate clear happens, any pending scheduled clear must be cancelled — otherwise the flag persists and causes a spurious clear later.
 
 ```go
-// ✅ Immediate reset also deletes pending flag
-func ResetMetrics(server *ooo.Server) {
-    SetMetrics(server, Metrics{})
-    ooo.Delete(server, pendingKey)
+// GOOD: Immediate reset also deletes pending flag
+func ResetMetrics(store Store) {
+    store.SetMetrics(Metrics{})
+    store.Delete(pendingKey)
 }
 ```
 

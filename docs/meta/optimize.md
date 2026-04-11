@@ -54,7 +54,7 @@ Every doc MUST have:
 ```yaml
 ---
 description: [one-line, keyword-rich]
-category: [core|storage|sync|auth|frontend|testing|patterns|principles|meta|planning|scaffold]
+category: [core|storage|testing|patterns|principles|meta|planning]
 triggers: [list of keywords/phrases that should cause this doc to be consulted]
 when: [one sentence: under what task conditions this doc applies]
 related: [list of other doc names]

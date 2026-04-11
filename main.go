@@ -44,7 +44,15 @@ func main() {
 			})
 			return
 		case "--init":
-			initPromptFiles()
+			fmt.Fprintln(os.Stderr, "--init is deprecated; use --setup instead")
+			os.Exit(1)
+		case "--update":
+			dryRun := len(os.Args) > 2 && os.Args[2] == "--dry-run"
+			self, _ := os.Executable()
+			if err := RunUpdate(self, dryRun); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
+			}
 			return
 		case "--upsert-mcp":
 			// detritus --upsert-mcp <file> <parent-key> <command-path>
@@ -62,6 +70,14 @@ func main() {
 			}
 			upsertVSCodeSettings(os.Args[2])
 			return
+		case "--setup":
+			dryRun := len(os.Args) > 2 && os.Args[2] == "--dry-run"
+			self, _ := os.Executable()
+			if err := RunSetup(self, dryRun); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
+			}
+			return
 		case "--help", "-h":
 			fmt.Println("detritus " + version)
 			fmt.Println("MCP knowledge base server (stdio transport)")
@@ -70,7 +86,8 @@ func main() {
 			fmt.Println("  detritus                                              Start MCP server")
 			fmt.Println("  detritus --version                                    Print version")
 			fmt.Println("  detritus --list                                       List embedded documents")
-			fmt.Println("  detritus --init                                       Generate .github/prompts/")
+			fmt.Println("  detritus --setup [--dry-run]                          Configure all detected IDEs")
+			fmt.Println("  detritus --update [--dry-run]                         Self-update to latest release")
 			fmt.Println("  detritus --upsert-mcp <file> <key> <cmd>              Upsert MCP config entry")
 			fmt.Println("  detritus --upsert-vscode-settings <file>              Upsert VS Code settings")
 			fmt.Println("  detritus --help                                       Print this help")
@@ -95,7 +112,7 @@ func main() {
 	}
 
 	server := mcp.NewServer(&mcp.Implementation{
-		Name:    "ooo-knowledge-base",
+		Name:    "detritus",
 		Version: version,
 	}, nil)
 
@@ -112,7 +129,7 @@ func main() {
 	})
 
 	type GetArgs struct {
-		Name    string `json:"name" jsonschema:"Document name without .md extension (e.g. ooo/package, scaffold/create, plan/analyze)"`
+		Name    string `json:"name" jsonschema:"Document name without .md extension (e.g. ooo/package, patterns/coding-style, plan/analyze)"`
 		Section string `json:"section,omitempty" jsonschema:"Optional: specific h2 section heading to retrieve instead of full document"`
 	}
 	mcp.AddTool(server, &mcp.Tool{
@@ -139,7 +156,7 @@ func main() {
 	}
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "kb_search",
-		Description: "Search across all ooo ecosystem knowledge base documents for a specific topic, pattern, or API name. Returns matching lines with context.",
+		Description: "Search across all knowledge base documents for a specific topic, pattern, or API name. Returns matching lines with context.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, args SearchArgs) (*mcp.CallToolResult, any, error) {
 		results, err := engine.Search(args.Query, 10)
 		if err != nil {
@@ -163,17 +180,40 @@ func main() {
 		return textResult(b.String()), nil, nil
 	})
 
+	type SectionsArgs struct {
+		Name string `json:"name" jsonschema:"Document name (e.g. ooo/package). Use kb_list to find valid names."`
+	}
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "kb_sections",
+		Description: "List the h2 sections available in a document. Use before kb_get with section= to retrieve only the relevant part of large documents instead of the full content.",
+	}, func(ctx context.Context, req *mcp.CallToolRequest, args SectionsArgs) (*mcp.CallToolResult, any, error) {
+		name := resolveDocName(args.Name, aliasToDoc)
+		sections, err := engine.GetSections(name)
+		if err != nil {
+			return errResult(fmt.Sprintf("Document '%s' not found. Use kb_list to see available documents.", args.Name)), nil, nil
+		}
+		if len(sections) == 0 {
+			return textResult(fmt.Sprintf("Document '%s' has no named sections (single block).", name)), nil, nil
+		}
+		var b strings.Builder
+		fmt.Fprintf(&b, "Sections in %s:\n", name)
+		for _, s := range sections {
+			fmt.Fprintf(&b, "- %s\n", s)
+		}
+		return textResult(b.String()), nil, nil
+	})
+
 	var resourceSummary strings.Builder
-	resourceSummary.WriteString("# ooo Knowledge Base\n\n")
-	resourceSummary.WriteString("Available documents and tools: kb_get(name, section?), kb_list(), kb_search(query)\n\n")
+	resourceSummary.WriteString("# Detritus Knowledge Base\n\n")
+	resourceSummary.WriteString("Available documents and tools: kb_get(name, section?), kb_list(), kb_search(query), kb_sections(name)\n\n")
 	for name, meta := range engine.DocMetadata() {
 		fmt.Fprintf(&resourceSummary, "- **%s**: %s\n", name, meta.Description)
 	}
 
 	server.AddResource(&mcp.Resource{
 		URI:         "mcp://detritus",
-		Name:        "ooo-knowledge-base",
-		Description: "Summary of all available ooo ecosystem knowledge base documents and tools",
+		Name:        "detritus",
+		Description: "Summary of all available knowledge base documents and tools",
 		MIMEType:    "text/markdown",
 	}, func(_ context.Context, _ *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
 		return &mcp.ReadResourceResult{
@@ -223,10 +263,6 @@ func aliasForDoc(name string) string {
 	switch {
 	case name == "plan/analyze":
 		return "plan"
-	case name == "plan/export":
-		return "plan-export"
-	case name == "plan/diagrams":
-		return "diagrams"
 	case name == "testing/index":
 		return "testing"
 	case strings.HasPrefix(name, "testing/go-backend-"):
@@ -236,63 +272,6 @@ func aliasForDoc(name string) string {
 	default:
 		return leaf
 	}
-}
-
-func initPromptFiles() {
-	promptsDir := filepath.Join(".github", "prompts")
-	if err := os.MkdirAll(promptsDir, 0o755); err != nil {
-		fmt.Fprintf(os.Stderr, "failed to create %s: %v\n", promptsDir, err)
-		os.Exit(1)
-	}
-
-	// Track which files we generate so we can clean stale ones
-	generated := map[string]bool{}
-
-	count := 0
-	_ = fs.WalkDir(docsFS, "docs", func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".md") {
-			return nil
-		}
-		name := strings.TrimSuffix(strings.TrimPrefix(path, "docs/"), ".md")
-		content, _ := fs.ReadFile(docsFS, path)
-		desc := extractDescription(string(content))
-		alias := aliasForDoc(name)
-		filename := alias + ".prompt.md"
-		generated[filename] = true
-
-		prompt := fmt.Sprintf("---\ndescription: %s\nagent: agent\n---\n\nCall kb_get(name=\"%s\") and follow the instructions in the returned document.\n", desc, name)
-
-		fpath := filepath.Join(promptsDir, filename)
-		if err := os.WriteFile(fpath, []byte(prompt), 0o644); err != nil {
-			fmt.Fprintf(os.Stderr, "  warning: could not write %s: %v\n", fpath, err)
-			return nil
-		}
-		count++
-		return nil
-	})
-
-	// Remove stale detritus-generated prompt files
-	entries, _ := os.ReadDir(promptsDir)
-	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".prompt.md") {
-			continue
-		}
-		if generated[e.Name()] {
-			continue
-		}
-		fpath := filepath.Join(promptsDir, e.Name())
-		data, err := os.ReadFile(fpath)
-		if err != nil {
-			continue
-		}
-		if strings.Contains(string(data), "kb_get") {
-			os.Remove(fpath)
-			fmt.Printf("  removed stale: %s\n", e.Name())
-		}
-	}
-
-	fmt.Printf("Generated %d prompt files in %s/\n", count, promptsDir)
-	fmt.Println("Reload VS Code window (Developer: Reload Window) to activate slash commands.")
 }
 
 // upsertMCP reads a JSON file, sets .<parentKey>.detritus = {command, args:[]},

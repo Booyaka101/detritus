@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/fs"
 	"math"
-	"sort"
 	"strings"
 
 	"github.com/blevesearch/bleve/v2"
@@ -28,7 +27,6 @@ type DocMeta struct {
 
 type GeneratedData struct {
 	Chunks      []ChunkMeta
-	Vectors     [][]float32
 	BlevePath   string
 	ToolDesc    string
 	DocMetadata map[string]DocMeta
@@ -90,24 +88,31 @@ func (e *Engine) Search(query string, topN int) ([]Result, error) {
 		topN = 10
 	}
 
-	bleveResults, err := e.bleveSearch(query, topN*2)
+	results, err := e.bleveSearch(query, topN*3)
 	if err != nil {
 		return nil, err
 	}
+	if len(results) == 0 {
+		return nil, nil
+	}
 
-	cosineResults := e.cosineSearch(query, topN*2)
-
-	merged := e.mergeResults(bleveResults, cosineResults, 0.5, 0.5)
-
-	merged = e.mmrRerank(merged, 0.7, topN)
-
-	var filtered []Result
-	for _, r := range merged {
-		if r.Score >= 0.45 {
-			filtered = append(filtered, r)
+	// Normalize scores to [0, 1] relative to best match
+	max := results[0].Score
+	if max > 0 {
+		for i := range results {
+			results[i].Score /= max
 		}
 	}
 
+	results = e.mmrRerank(results, 0.7, topN)
+
+	// Filter low-quality matches (below 10% of best result)
+	var filtered []Result
+	for _, r := range results {
+		if r.Score >= 0.1 {
+			filtered = append(filtered, r)
+		}
+	}
 	return filtered, nil
 }
 
@@ -135,6 +140,20 @@ func (e *Engine) GetSection(name, section string) (string, error) {
 	return extractSection(content, section), nil
 }
 
+func (e *Engine) GetSections(name string) ([]string, error) {
+	meta, ok := e.data.DocMetadata[name]
+	if !ok {
+		return nil, fmt.Errorf("doc %q not found", name)
+	}
+	var sections []string
+	for _, s := range meta.Sections {
+		if s != "" {
+			sections = append(sections, s)
+		}
+	}
+	return sections, nil
+}
+
 func (e *Engine) bleveSearch(query string, topN int) ([]Result, error) {
 	q := bleve.NewMatchQuery(query)
 	req := bleve.NewSearchRequestOptions(q, topN, 0, false)
@@ -157,129 +176,6 @@ func (e *Engine) bleveSearch(query string, topN int) ([]Result, error) {
 		})
 	}
 	return results, nil
-}
-
-func (e *Engine) cosineSearch(query string, topN int) []Result {
-	queryVec := e.queryVector(query)
-	if queryVec == nil {
-		return nil
-	}
-
-	type scored struct {
-		index int
-		score float64
-	}
-	var scores []scored
-	for i, vec := range e.data.Vectors {
-		s := cosineSimilarity(queryVec, vec)
-		scores = append(scores, scored{i, s})
-	}
-	sort.Slice(scores, func(i, j int) bool {
-		return scores[i].score > scores[j].score
-	})
-
-	limit := topN
-	if limit > len(scores) {
-		limit = len(scores)
-	}
-
-	var results []Result
-	for _, s := range scores[:limit] {
-		meta := e.data.Chunks[s.index]
-		results = append(results, Result{
-			DocName:  meta.DocName,
-			Section:  meta.Section,
-			Score:    s.score,
-			Position: meta.Position,
-		})
-	}
-	return results
-}
-
-func (e *Engine) queryVector(query string) []float32 {
-	queryLower := strings.ToLower(query)
-	tokens := strings.Fields(queryLower)
-
-	var bestIdx int
-	var bestScore float64
-	for i, chunk := range e.data.Chunks {
-		score := tokenOverlap(tokens, strings.ToLower(chunk.DocName+" "+chunk.Section))
-		if score > bestScore {
-			bestScore = score
-			bestIdx = i
-		}
-	}
-
-	if bestScore > 0 && bestIdx < len(e.data.Vectors) {
-		return e.data.Vectors[bestIdx]
-	}
-
-	if len(e.data.Vectors) > 0 {
-		centroid := make([]float32, len(e.data.Vectors[0]))
-		for _, v := range e.data.Vectors {
-			for j, val := range v {
-				centroid[j] += val
-			}
-		}
-		n := float32(len(e.data.Vectors))
-		for j := range centroid {
-			centroid[j] /= n
-		}
-		return centroid
-	}
-	return nil
-}
-
-func (e *Engine) mergeResults(bleveResults, cosineResults []Result, bleveWeight, cosineWeight float64) []Result {
-	type key struct {
-		doc     string
-		section string
-	}
-	merged := map[key]*Result{}
-
-	var maxBleve float64
-	for _, r := range bleveResults {
-		if r.Score > maxBleve {
-			maxBleve = r.Score
-		}
-	}
-	if maxBleve == 0 {
-		maxBleve = 1
-	}
-
-	for _, r := range bleveResults {
-		k := key{r.DocName, r.Section}
-		normalized := r.Score / maxBleve
-		merged[k] = &Result{
-			DocName: r.DocName,
-			Section: r.Section,
-			Score:   normalized * bleveWeight,
-			Snippet: r.Snippet,
-		}
-	}
-
-	for _, r := range cosineResults {
-		k := key{r.DocName, r.Section}
-		cosineNorm := (r.Score + 1) / 2
-		if existing, ok := merged[k]; ok {
-			existing.Score += cosineNorm * cosineWeight
-		} else {
-			merged[k] = &Result{
-				DocName: r.DocName,
-				Section: r.Section,
-				Score:   cosineNorm * cosineWeight,
-			}
-		}
-	}
-
-	var results []Result
-	for _, r := range merged {
-		results = append(results, *r)
-	}
-	sort.Slice(results, func(i, j int) bool {
-		return results[i].Score > results[j].Score
-	})
-	return results
 }
 
 func (e *Engine) mmrRerank(results []Result, lambda float64, topN int) []Result {
@@ -389,7 +285,7 @@ func extractSection(content, section string) string {
 	inSection := false
 	for _, line := range lines {
 		if strings.HasPrefix(line, "## ") {
-			heading := strings.TrimPrefix(line, "## ")
+			heading := strings.TrimSpace(strings.TrimPrefix(line, "## "))
 			if strings.EqualFold(heading, section) {
 				inSection = true
 				continue
@@ -413,36 +309,6 @@ func truncate(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen] + "..."
-}
-
-func cosineSimilarity(a, b []float32) float64 {
-	if len(a) != len(b) {
-		return 0
-	}
-	var dot, normA, normB float64
-	for i := range a {
-		dot += float64(a[i]) * float64(b[i])
-		normA += float64(a[i]) * float64(a[i])
-		normB += float64(b[i]) * float64(b[i])
-	}
-	denom := math.Sqrt(normA) * math.Sqrt(normB)
-	if denom == 0 {
-		return 0
-	}
-	return dot / denom
-}
-
-func tokenOverlap(tokens []string, text string) float64 {
-	var matches int
-	for _, t := range tokens {
-		if strings.Contains(text, t) {
-			matches++
-		}
-	}
-	if len(tokens) == 0 {
-		return 0
-	}
-	return float64(matches) / float64(len(tokens))
 }
 
 func docSimilarity(a, b Result) float64 {

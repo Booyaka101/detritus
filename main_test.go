@@ -3,15 +3,25 @@ package main
 import (
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+func testBinaryPath(t *testing.T) string {
+	t.Helper()
+	name := "detritus"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	return filepath.Join(t.TempDir(), name)
+}
+
 func TestMCPServer(t *testing.T) {
 	// Build the binary
-	binPath := filepath.Join(t.TempDir(), "ooo-kb")
+	binPath := testBinaryPath(t)
 	build := exec.Command("go", "build", "-o", binPath, ".")
 	build.Dir = "."
 	if out, err := build.CombinedOutput(); err != nil {
@@ -33,14 +43,14 @@ func TestMCPServer(t *testing.T) {
 	if err != nil {
 		t.Fatal("ListTools:", err)
 	}
-	if len(tools.Tools) != 3 {
-		t.Fatalf("expected 3 tools, got %d", len(tools.Tools))
+	if len(tools.Tools) != 4 {
+		t.Fatalf("expected 4 tools, got %d", len(tools.Tools))
 	}
 	toolNames := map[string]bool{}
 	for _, tool := range tools.Tools {
 		toolNames[tool.Name] = true
 	}
-	for _, name := range []string{"kb_list", "kb_get", "kb_search"} {
+	for _, name := range []string{"kb_list", "kb_get", "kb_search", "kb_sections"} {
 		if !toolNames[name] {
 			t.Errorf("missing tool: %s", name)
 		}
@@ -63,8 +73,8 @@ func TestMCPServer(t *testing.T) {
 	t.Log("kb_list output:\n" + listText)
 
 	// Verify subdirectory doc appears in kb_list
-	if !contains(listText, "scaffold/create") {
-		t.Fatal("kb_list missing scaffold/create")
+	if !contains(listText, "ooo/state-patterns") {
+		t.Fatal("kb_list missing ooo/state-patterns")
 	}
 
 	// Verify deleted docs are gone from kb_list
@@ -92,21 +102,21 @@ func TestMCPServer(t *testing.T) {
 	t.Log("kb_get ooo/package length:", len(getText))
 
 	// Test: kb_get with subdirectory doc
-	scaffoldResult, err := session.CallTool(ctx, &mcp.CallToolParams{
+	stateResult, err := session.CallTool(ctx, &mcp.CallToolParams{
 		Name:      "kb_get",
-		Arguments: map[string]any{"name": "scaffold/create"},
+		Arguments: map[string]any{"name": "ooo/state-patterns"},
 	})
 	if err != nil {
-		t.Fatal("kb_get scaffold/create:", err)
+		t.Fatal("kb_get ooo/state-patterns:", err)
 	}
-	if scaffoldResult.IsError {
-		t.Fatal("kb_get scaffold/create returned error")
+	if stateResult.IsError {
+		t.Fatal("kb_get ooo/state-patterns returned error")
 	}
-	scaffoldText := scaffoldResult.Content[0].(*mcp.TextContent).Text
-	if !contains(scaffoldText, "Create a New Project") {
-		t.Fatal("scaffold/create missing expected content")
+	stateText := stateResult.Content[0].(*mcp.TextContent).Text
+	if !contains(stateText, "Server-Side State") {
+		t.Fatal("ooo/state-patterns missing expected content")
 	}
-	t.Log("kb_get scaffold/create length:", len(scaffoldText))
+	t.Log("kb_get ooo/state-patterns length:", len(stateText))
 
 	// Test: kb_get with deleted docs returns error
 	for _, deleted := range []string{"ooo-ko", "scaffold-simple-service"} {
@@ -214,21 +224,21 @@ func TestMCPServer(t *testing.T) {
 	}
 
 	// Test: kb_search finds content in subdirectory docs
-	scaffoldSearch, err := session.CallTool(ctx, &mcp.CallToolParams{
+	stateSearch, err := session.CallTool(ctx, &mcp.CallToolParams{
 		Name:      "kb_search",
-		Arguments: map[string]any{"query": "INTERACTIVE WORKFLOW"},
+		Arguments: map[string]any{"query": "MetricsTick pending reset"},
 	})
 	if err != nil {
-		t.Fatal("kb_search scaffold:", err)
+		t.Fatal("kb_search state-patterns:", err)
 	}
-	scaffoldSearchText := scaffoldSearch.Content[0].(*mcp.TextContent).Text
-	if !contains(scaffoldSearchText, "scaffold/create") {
-		t.Fatal("kb_search didn't find scaffold/create for 'INTERACTIVE WORKFLOW'")
+	stateSearchText := stateSearch.Content[0].(*mcp.TextContent).Text
+	if !contains(stateSearchText, "ooo/state-patterns") {
+		t.Fatal("kb_search didn't find ooo/state-patterns for 'MetricsTick pending reset'")
 	}
 }
 
 func TestListFlag(t *testing.T) {
-	binPath := filepath.Join(t.TempDir(), "ooo-kb")
+	binPath := testBinaryPath(t)
 	build := exec.Command("go", "build", "-o", binPath, ".")
 	build.Dir = "."
 	if out, err := build.CombinedOutput(); err != nil {
@@ -259,7 +269,7 @@ func TestListFlag(t *testing.T) {
 		seen[name] = desc
 	}
 
-	for _, required := range []string{"ooo/package", "ooo/filters-internals", "scaffold/create", "meta/grow", "meta/truthseeker", "meta/research-first", "plan/analyze", "plan/diagrams", "plan/export", "patterns/async-events", "patterns/line-of-sight"} {
+	for _, required := range []string{"ooo/package", "ooo/filters-internals", "ooo/state-patterns", "meta/grow", "meta/truthseeker", "meta/research-first", "plan/analyze", "patterns/async-events", "patterns/line-of-sight"} {
 		if _, ok := seen[required]; !ok {
 			t.Errorf("--list missing required doc: %s", required)
 		}

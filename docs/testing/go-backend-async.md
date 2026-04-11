@@ -19,7 +19,6 @@ related:
   - testing/index
   - testing/go-backend-mock
   - testing/go-backend-e2e
-  - ooo/package
 ---
 
 # Async Testing Patterns

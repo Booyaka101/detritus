@@ -13,8 +13,6 @@ when: User provides requirements, feature request, or asks for analysis/planning
 related:
   - meta/grow
   - meta/truthseeker
-  - plan/export
-  - plan/diagrams
 ---
 
 # Requirement Analysis Workflow
