@@ -41,7 +41,6 @@ detritus --setup
 | `/coding-style` | Naming, error handling, commits |
 | `/go-modern` | Modern Go idioms (1.22+) |
 | `/line-of-sight` | Flat code, early returns |
-| `/research-first` | Exhaust resources before asking |
 
 ## Update
 

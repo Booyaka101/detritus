@@ -269,7 +269,7 @@ func TestListFlag(t *testing.T) {
 		seen[name] = desc
 	}
 
-	for _, required := range []string{"ooo/package", "ooo/filters-internals", "ooo/state-patterns", "meta/grow", "meta/truthseeker", "meta/research-first", "plan/index", "patterns/async-events", "patterns/line-of-sight"} {
+	for _, required := range []string{"ooo/package", "ooo/filters-internals", "ooo/state-patterns", "meta/grow", "meta/truthseeker", "plan/index", "patterns/async-events", "patterns/line-of-sight"} {
 		if _, ok := seen[required]; !ok {
 			t.Errorf("--list missing required doc: %s", required)
 		}
