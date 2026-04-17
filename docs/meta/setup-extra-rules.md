@@ -98,11 +98,14 @@ Write-Output "{`"hookSpecificOutput`":{`"additionalContext`":`"Session environme
 This is the ONLY settings.json change this skill makes. Apply with care:
 
 - Read the file, parse as JSON. If invalid/missing, create `{"permissions":{"allow":[],"deny":[]}}` first.
+- **Orphan sweep first**: scan all existing hook entries that reference `~/.claude/hooks/detritus-*` scripts. If the referenced script no longer exists on disk, remove that entry. This heals settings.json after the user manually deletes a hook script.
 - For each generated hook, check whether an entry referencing the same `detritus-*` script already exists.
   - If absent: append it.
   - If present: leave it (the script content was overwritten on disk; the entry doesn't need rewriting).
 - Never touch hook entries not referencing `detritus-*` scripts.
 - Write back with proper JSON formatting.
+
+For a full removal of all detritus-generated rules and hooks (including settings entries), use the `cleanup-extra-rules` skill.
 
 ## Phase 4: Report
 
