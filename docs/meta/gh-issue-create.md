@@ -50,12 +50,27 @@ Scan the most recent turns for:
 
 - a concrete problem or ask the user raised ("we need X", "Y is broken", "follow-up: Z")
 - relevant constraints the user stated (platform, deadline, stakeholder, preference)
+- any reference to a past change — phrasing like "since the refactor", "this broke after X was merged", "used to work before", or a direct commit/PR reference
 
 Rules:
 - Synthesize; do **not** quote transcript verbatim.
 - Do **not** include the agent's own deliberations or speculation.
 - Do **not** reference code identifiers, file paths, or function names. Issues are product-level.
 - If the conversation doesn't contain a concrete ask, STOP and ask the user what the issue should be about.
+
+### Regression causation — when the user references a past change
+
+If the user's description traces the problem to a prior change, find the commit before drafting:
+
+```
+git log --oneline -- <affected-area>
+git log --grep="<keyword>"
+git show --stat <sha>
+```
+
+Capture the short SHA and a one-line product-level description of what changed (not the technical diff). This goes in the `## Context` section of the body template below. A SHA is product-level causation — "behavior drifted after `abc123`" — not an implementation detail, so it belongs in the body even under the no-code-identifiers rule.
+
+If the user references a past change but you cannot find the commit, note that in the context section ("user reports this started after a recent change; specific commit not yet identified") rather than omitting the context entirely.
 
 ## Phase 2: Draft (product-focused, non-technical)
 
@@ -70,6 +85,12 @@ Body template:
 
 ## Motivation
 <what's the product or user impact today, and why it matters>
+
+## Context
+<OPTIONAL — include only when Phase 1 identified a past change as causation.
+One or two lines naming the short SHA and the product-level description of what
+drifted. Example: "Behavior drifted after abc123 (trendboard layout swap), March 2026."
+Omit this section entirely when there's no regression lineage to cite.>
 
 ## Acceptance
 - [ ] <plain-language check #1>
@@ -130,8 +151,9 @@ https://github.com/<owner>/<repo>/issues/<n>
 
 ## Guardrails
 
-- Don't include code identifiers / file paths / function names in the issue body.
+- Don't include code identifiers / file paths / function names in the issue body. A short SHA in the `## Context` section is the one exception — it's causation metadata, not implementation detail.
 - Don't post without explicit confirmation. Ever.
 - Don't open an issue in a repo the user didn't authorize (ask if ambiguous).
 - Don't open obvious duplicates — warn on near-match titles.
 - The attribution footer goes on the body, never the title.
+- The issue body is the single source of truth for this ask. If the user refines scope in later turns, edit the body in place (`gh api --method PATCH .../issues/<n>`) — don't leave a comment trail that duplicates what the body already says.

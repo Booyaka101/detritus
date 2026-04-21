@@ -35,7 +35,11 @@ This applies to PR bodies, issue bodies, comment bodies, release notes. It does 
 - Full issue URL — parsed to `<owner>/<repo>#<n>`.
 - Bare `#<n>` — valid only when cwd is already inside the target repo.
 
-## Phase 0: Fetch issue
+## Phase 0: Track progress
+
+Initialize a `TodoWrite` list mirroring phases 1–8 so the user can see where the flow is at a glance. Update in real time — mark in-progress before starting each phase, completed immediately after. Skip this only if the entire flow will finish in under two tool calls (rare).
+
+## Phase 1: Fetch issue
 
 Use the REST API (not `gh issue view`, which can fail on repos still using Projects classic):
 
@@ -45,13 +49,13 @@ gh api repos/<owner>/<repo>/issues/<n> --jq '{number, title, body, labels: [.lab
 
 Parse title, body, labels.
 
-## Phase 1: Locate repo
+## Phase 2: Locate repo
 
 - Verify cwd matches the target repo via `git remote get-url origin`.
 - If not: search the workspace roots for a clone at `**/github.com/<owner>/<repo>` or `**/<repo>`. Never clone remotely.
 - If still not found, STOP and ask the user where the clone lives.
 
-## Phase 2: Understand scope
+## Phase 3: Understand scope
 
 Delegate broad exploration to an `Explore` subagent so the main context stays clean. Prompt it to find:
 - files that the issue likely touches
@@ -60,32 +64,34 @@ Delegate broad exploration to an `Explore` subagent so the main context stays cl
 
 No new abstractions unless the issue explicitly demands one. No cleanup drive-bys.
 
-## Phase 3: Branch from the default base
+## Phase 4: Branch from the default base
 
 Read the default branch:
 ```
 gh api repos/<owner>/<repo> --jq .default_branch
 ```
 
-Fetch and branch:
+Fetch and branch **from the default base, never from the current working branch**:
 ```
 git fetch origin
 git checkout -b <kebab-scoped-branch> origin/<default_branch>
 ```
+
+The explicit `origin/<default_branch>` base matters. If you run `git checkout -b <new>` without a base, git branches from whatever is currently checked out — which might carry unrelated WIP into the PR. Always branch from the fetched default.
 
 Branch-name convention: derive from issue title.
 - Conventional-commits–style prefix matches the planned commit type: `feat/`, `fix/`, `refactor/`, `docs/`, `chore/`.
 - Scope is a short kebab-case slug of the issue topic.
 - Example: issue titled "baccarat new PairPlus based results" → `feat/baccarat-pair-plus-sidebets`.
 
-## Phase 4: Implement + test
+## Phase 5: Implement + test
 
 - Edit code directly (small, scoped changes).
 - Run the package's tests (`go test ./...` for Go, equivalent for other languages).
 - Do NOT proceed to commit if tests regress.
 - If the issue is ambiguous, ask the user a targeted question before implementing.
 
-## Phase 5: Commit
+## Phase 6: Commit
 
 Conventional-commits message, HEREDOC, with the `Co-Authored-By:` footer. Example:
 ```
@@ -101,13 +107,13 @@ EOF
 
 One logical change per commit. Stage specific files (`git add <path> ...`), not `git add -A`.
 
-## Phase 6: Push
+## Phase 7: Push
 
 ```
 git push -u origin <branch>
 ```
 
-## Phase 7: Open PR
+## Phase 8: Open PR
 
 Title: conventional-commits style, ≤70 chars.
 
@@ -137,9 +143,19 @@ EOF
 
 `gh pr create` may print a Projects-classic GraphQL warning on some repos but the PR still gets created; capture the returned URL from stdout.
 
-## Phase 8: Report back
+## Phase 9: Report back
 
 Print the PR URL on its own line, then a one-sentence summary of what was done. No emoji elsewhere in the reply.
+
+## Phase 10: Handle chat follow-up
+
+After the PR is open, the user may give additional input in the same chat session (not as a GitHub review comment). Handle it based on scope:
+
+- **Same scope** (refinement, clarification, correction of the original ask) — edit the issue body in place via `gh api --method PATCH repos/<owner>/<repo>/issues/<n> -f body=...` to reflect the final state. Add follow-up commits to the existing PR branch. Do NOT leave chat-originated changes in the issue's comment thread or as PR comments — the issue body stays the single source of truth.
+- **Out-of-scope** (a new problem surfaced while reviewing the first) — open a separate issue via `/gh-issue-create` and a separate PR. Do not expand the current PR.
+- **Ambiguous** — ask the user which bucket the input falls into before touching the issue body or adding commits.
+
+GitHub-review-comment feedback (posted on the PR itself) is handled by `/gh-feedback-work`, not here.
 
 ## Guardrails
 
@@ -147,4 +163,7 @@ Print the PR URL on its own line, then a one-sentence summary of what was done. 
 - Don't force-push, don't rebase shared branches, don't skip hooks.
 - Don't post issue/PR comments from this skill — the PR body carries all narrative.
 - Don't include the attribution footer on commits (`Co-Authored-By:` already handles commits). Footer is GitHub-UI-only.
+- Don't expand scope. If "related" work is spotted while implementing, open a new issue for it instead of piling more commits into this PR — one issue, one PR.
+- Don't branch from the current working branch. Always branch from the fetched default (`origin/<default_branch>`). Carrying unrelated WIP into the PR is a silent failure mode.
+- The issue body is the single source of truth. Chat follow-ups edit the body in place; don't leave a trail of PR comments or issue comments that duplicate what the body already says.
 - If anything blocks (tests fail, scope unclear, repo not found), STOP and surface the blocker to the user. Don't paper over it.
