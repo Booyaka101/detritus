@@ -214,6 +214,26 @@ func TestSliceLines(t *testing.T) {
 	}
 }
 
+func TestPackNameValidation(t *testing.T) {
+	redirectDataDir(t)
+	for _, bad := range []string{"", ".", "..", "../etc", "foo/bar", "abs/olute", "has space", "with|pipe"} {
+		if _, err := Pack(bad, []string{t.TempDir()}, Options{}); err == nil {
+			t.Errorf("Pack(%q) accepted, wanted rejection", bad)
+		}
+		if err := Unpack(bad); err == nil {
+			t.Errorf("Unpack(%q) accepted, wanted rejection", bad)
+		}
+		if _, err := LoadManifest(bad); err == nil {
+			t.Errorf("LoadManifest(%q) accepted, wanted rejection", bad)
+		}
+	}
+	for _, ok := range []string{"detritus", "work", "pack-1", "pack.v2", "pack_name", "ABCabc123"} {
+		if err := ValidatePackName(ok); err != nil {
+			t.Errorf("ValidatePackName(%q) rejected: %v", ok, err)
+		}
+	}
+}
+
 func TestPackForCWD(t *testing.T) {
 	redirectDataDir(t)
 	src := t.TempDir()

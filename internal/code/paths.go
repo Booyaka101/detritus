@@ -1,9 +1,28 @@
 package code
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 )
+
+var validPackName = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
+
+// ValidatePackName rejects names that could escape the packs directory or
+// collide with special filesystem entries.
+func ValidatePackName(name string) error {
+	if name == "" {
+		return fmt.Errorf("pack name required")
+	}
+	if name == "." || name == ".." {
+		return fmt.Errorf("invalid pack name %q", name)
+	}
+	if !validPackName.MatchString(name) {
+		return fmt.Errorf("invalid pack name %q: allowed characters are [A-Za-z0-9._-]", name)
+	}
+	return nil
+}
 
 // DataDir returns the detritus data directory.
 // Resolution order: $DETRITUS_HOME, $XDG_DATA_HOME/detritus, ~/.detritus.

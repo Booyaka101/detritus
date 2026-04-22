@@ -53,8 +53,8 @@ type Options struct {
 // roots must be absolute paths. If the pack exists and roots is nil,
 // the previous manifest's roots are reused.
 func Pack(name string, roots []string, opts Options) (*PackStats, error) {
-	if name == "" {
-		return nil, fmt.Errorf("pack name required")
+	if err := ValidatePackName(name); err != nil {
+		return nil, err
 	}
 	if err := EnsurePacksDir(); err != nil {
 		return nil, fmt.Errorf("ensure packs dir: %w", err)
@@ -210,8 +210,8 @@ func Pack(name string, roots []string, opts Options) (*PackStats, error) {
 
 // Unpack deletes a pack's directory.
 func Unpack(name string) error {
-	if name == "" {
-		return fmt.Errorf("pack name required")
+	if err := ValidatePackName(name); err != nil {
+		return err
 	}
 	dir := PackDir(name)
 	if _, err := os.Stat(dir); err != nil {
@@ -222,6 +222,9 @@ func Unpack(name string) error {
 
 // LoadManifest reads a pack's manifest from disk.
 func LoadManifest(name string) (*Manifest, error) {
+	if err := ValidatePackName(name); err != nil {
+		return nil, err
+	}
 	data, err := os.ReadFile(ManifestPath(name))
 	if err != nil {
 		return nil, err
