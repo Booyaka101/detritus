@@ -1,11 +1,8 @@
 ---
 description: Router for the /code workspace-pack workflow — user-invoked entry point for pack-backed code exploration. Dispatches to admin sub-actions (pack/list/refresh/unpack) or runs the rest of the line as a task backed by code_* MCP tools.
 category: code
-triggers:
-  - code
-  - code pack
-  - code router
-when: User explicitly invokes /code. Never auto-fire on natural-language phrases like "search the code" — this skill is explicit-only, matching the /gh router pattern.
+triggers: []
+when: User explicitly invokes /code. Never auto-fire on natural-language phrases — this skill is explicit-only, matching the /gh router pattern. Triggers are deliberately empty so harnesses that fuzzy-match phrases can't grab on the string "code".
 related: []
 ---
 
