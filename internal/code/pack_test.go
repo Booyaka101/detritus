@@ -27,11 +27,31 @@ func writeFile(t *testing.T, path, content string) {
 	}
 }
 
+// countMatches runs a content-field match query and returns how many unique
+// documents matched. It's a small helper for asserting index freshness.
+func countMatches(t *testing.T, packName, term string) int {
+	t.Helper()
+	reg := NewRegistry()
+	defer reg.Close()
+	idx, err := reg.Open(packName)
+	if err != nil {
+		t.Fatalf("open index: %v", err)
+	}
+	q := bleve.NewMatchQuery(term)
+	q.SetField("content")
+	req := bleve.NewSearchRequestOptions(q, 100, 0, false)
+	res, err := idx.Search(req)
+	if err != nil {
+		t.Fatalf("search %q: %v", term, err)
+	}
+	return len(res.Hits)
+}
+
 func TestPackIncremental(t *testing.T) {
 	redirectDataDir(t)
 
 	src := t.TempDir()
-	writeFile(t, filepath.Join(src, "main.go"), "package main\n\nfunc Hello() string { return \"hi\" }\n")
+	writeFile(t, filepath.Join(src, "main.go"), "package main\n\nfunc Hello() string { return \"oldmarker\" }\n")
 	writeFile(t, filepath.Join(src, "util.py"), "def greet(name):\n    return f'hello {name}'\n")
 	writeFile(t, filepath.Join(src, ".gitignore"), "secret.txt\n")
 	writeFile(t, filepath.Join(src, "secret.txt"), "should-be-ignored\n")
@@ -57,15 +77,30 @@ func TestPackIncremental(t *testing.T) {
 		t.Fatalf("noop stats: new=%d mod=%d del=%d unchanged=%d", stats.New, stats.Modified, stats.Deleted, stats.Unchanged)
 	}
 
+	// Baseline: the old marker is indexed, the new one isn't.
+	if n := countMatches(t, "test", "oldmarker"); n != 1 {
+		t.Fatalf("oldmarker pre-modify: got %d hits want 1", n)
+	}
+	if n := countMatches(t, "test", "newmarker"); n != 0 {
+		t.Fatalf("newmarker pre-modify: got %d hits want 0", n)
+	}
+
 	// Modify main.go → should show modified:1
 	time.Sleep(10 * time.Millisecond) // ensure mtime ticks
-	writeFile(t, filepath.Join(src, "main.go"), "package main\n\nfunc Hello() string { return \"bye\" }\n")
+	writeFile(t, filepath.Join(src, "main.go"), "package main\n\nfunc Hello() string { return \"newmarker\" }\n")
 	stats, err = Pack("test", nil, Options{DetritusVersion: "test"})
 	if err != nil {
 		t.Fatalf("modify pack: %v", err)
 	}
 	if stats.Modified != 1 || stats.New != 0 || stats.Deleted != 0 {
 		t.Fatalf("modify stats: new=%d mod=%d del=%d unchanged=%d", stats.New, stats.Modified, stats.Deleted, stats.Unchanged)
+	}
+	// The counter said "modified", but verify the index itself was actually updated.
+	if n := countMatches(t, "test", "oldmarker"); n != 0 {
+		t.Fatalf("oldmarker post-modify: got %d hits want 0 (index stale)", n)
+	}
+	if n := countMatches(t, "test", "newmarker"); n != 1 {
+		t.Fatalf("newmarker post-modify: got %d hits want 1 (index not updated)", n)
 	}
 
 	// Add a new file
