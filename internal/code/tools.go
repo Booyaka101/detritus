@@ -100,9 +100,18 @@ func registerSearch(server *mcp.Server, reg *Registry) {
 		if limit <= 0 {
 			limit = 10
 		}
+		// When a root filter is set we over-fetch so post-filtering can still
+		// deliver `limit` hits. Cap at 1000 to avoid runaway requests.
+		fetchLimit := limit
+		if args.Root != "" {
+			fetchLimit = limit * 10
+			if fetchLimit > 1000 {
+				fetchLimit = 1000
+			}
+		}
 		q := bleve.NewMatchQuery(args.Query)
 		q.SetField("content")
-		req2 := bleve.NewSearchRequestOptions(q, limit, 0, false)
+		req2 := bleve.NewSearchRequestOptions(q, fetchLimit, 0, false)
 		req2.Fields = []string{"root", "path_rel"}
 		req2.Highlight = bleve.NewHighlight()
 		req2.Highlight.AddField("content")
@@ -110,18 +119,20 @@ func registerSearch(server *mcp.Server, reg *Registry) {
 		if err != nil {
 			return codeErrResult("search: " + err.Error()), nil, nil
 		}
+		multi := hasMultiRoot(res)
 		var b strings.Builder
-		if len(res.Hits) == 0 {
-			return codeTextResult("No matches for: " + args.Query), nil, nil
-		}
+		emitted := 0
 		for _, hit := range res.Hits {
+			if emitted >= limit {
+				break
+			}
 			root, _ := hit.Fields["root"].(string)
 			pathRel, _ := hit.Fields["path_rel"].(string)
 			if args.Root != "" && root != args.Root {
 				continue
 			}
 			display := pathRel
-			if len(res.Hits) > 0 && hasMultiRoot(res) {
+			if multi {
 				display = root + "|" + pathRel
 			}
 			fmt.Fprintf(&b, "## %s (score: %.3f)\n", display, hit.Score)
@@ -131,9 +142,13 @@ func registerSearch(server *mcp.Server, reg *Registry) {
 				}
 			}
 			b.WriteString("\n")
+			emitted++
 		}
-		if b.Len() == 0 {
-			return codeTextResult("No matches under root " + args.Root), nil, nil
+		if emitted == 0 {
+			if args.Root != "" {
+				return codeTextResult(fmt.Sprintf("No matches for %q under root %s", args.Query, args.Root)), nil, nil
+			}
+			return codeTextResult("No matches for: " + args.Query), nil, nil
 		}
 		return codeTextResult(b.String()), nil, nil
 	})

@@ -7,6 +7,7 @@ import (
 	"go/parser"
 	"go/token"
 	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -179,12 +180,7 @@ func outlineByRegex(content []byte, patterns []*regexp.Regexp) string {
 	if len(matches) == 0 {
 		return ""
 	}
-	// sort by start offset
-	for i := 1; i < len(matches); i++ {
-		for j := i; j > 0 && matches[j-1].start > matches[j].start; j-- {
-			matches[j-1], matches[j] = matches[j], matches[j-1]
-		}
-	}
+	sort.Slice(matches, func(i, j int) bool { return matches[i].start < matches[j].start })
 	var b strings.Builder
 	for _, m := range matches {
 		b.WriteString(m.text)
