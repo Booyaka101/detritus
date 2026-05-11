@@ -51,6 +51,9 @@ detritus --setup
 | `/go-modern` | Modern Go idioms (1.22+) |
 | `/line-of-sight` | Flat code, early returns |
 
+Codex displays plugin commands with the plugin namespace, for example
+`/detritus:plan`.
+
 ## Update
 
 ```bash
