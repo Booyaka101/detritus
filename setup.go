@@ -70,6 +70,9 @@ func RunSetup(binaryPath string, dryRun bool) error {
 	// Claude Code
 	setupClaudeCode(home, binaryPath, docs, dryRun)
 
+	// Codex
+	setupCodex(home, docs, dryRun)
+
 	// Verdent
 	if verdentDetected(home) {
 		setupVerdent(home, binaryPath, docs, dryRun)
@@ -328,6 +331,57 @@ func generateClaudeSkills(home string, docs []docEntry) {
 	fmt.Printf("Claude Code skills: %s\n", skillsDir)
 }
 
+// ---- Codex ------------------------------------------------------------------
+
+func setupCodex(home string, docs []docEntry, dryRun bool) {
+	codexDir := filepath.Join(home, ".codex")
+	if !dirExists(codexDir) {
+		fmt.Println("Codex not detected; skipping Codex setup.")
+		return
+	}
+
+	skillsDir := filepath.Join(codexDir, "skills")
+	if dryRun {
+		fmt.Printf("[dry-run] Would write %d Codex skill files to %s\n", len(docs), skillsDir)
+		return
+	}
+
+	generateCodexSkills(skillsDir, docs)
+	fmt.Printf("Codex skills: %s\n", skillsDir)
+}
+
+func generateCodexSkills(skillsDir string, docs []docEntry) {
+	if err := os.MkdirAll(skillsDir, 0o755); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: codex skills dir: %v\n", err)
+		return
+	}
+
+	generated := map[string]bool{}
+	for _, doc := range docs {
+		generated[doc.alias] = true
+		skillDir := filepath.Join(skillsDir, doc.alias)
+		_ = os.MkdirAll(skillDir, 0o755)
+		desc := doc.desc
+		if desc == "" {
+			desc = "Detritus knowledge base document: " + doc.name
+		}
+		content := fmt.Sprintf("---\nname: %s\ndescription: %s\n---\n\nCall the detritus MCP tool `kb_get` with name=\"%s\" and follow the instructions in the returned document.\n", doc.alias, desc, doc.name)
+		_ = os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(content), 0o644)
+	}
+
+	entries, _ := os.ReadDir(skillsDir)
+	for _, e := range entries {
+		if !e.IsDir() || generated[e.Name()] {
+			continue
+		}
+		sf := filepath.Join(skillsDir, e.Name(), "SKILL.md")
+		data, err := os.ReadFile(sf)
+		if err == nil && strings.Contains(string(data), "detritus MCP tool `kb_get`") {
+			os.RemoveAll(filepath.Join(skillsDir, e.Name()))
+		}
+	}
+}
+
 // ---- Verdent ----------------------------------------------------------------
 
 func verdentDetected(home string) bool {
@@ -535,6 +589,14 @@ func printVerification(home string) {
 		fmt.Println("  [PASS] Claude Code skills")
 	} else {
 		fmt.Println("  [WARN] Claude Code skills not found")
+	}
+
+	// Codex
+	codexSkillsDir := filepath.Join(home, ".codex", "skills")
+	if fileExists(filepath.Join(codexSkillsDir, "plan", "SKILL.md")) {
+		fmt.Println("  [PASS] Codex skills")
+	} else if dirExists(filepath.Join(home, ".codex")) {
+		fmt.Println("  [WARN] Codex skills not found")
 	}
 }
 
