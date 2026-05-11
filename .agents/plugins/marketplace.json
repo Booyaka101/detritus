@@ -8,7 +8,7 @@
       "name": "detritus",
       "source": {
         "source": "local",
-        "path": "."
+        "path": "./plugins/detritus"
       },
       "policy": {
         "installation": "AVAILABLE",
