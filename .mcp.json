@@ -1,8 +1,10 @@
 {
     "mcpServers": {
         "detritus": {
-            "command": "detritus",
-            "args": []
+            "command": "node",
+            "args": [
+                "./scripts/detritus-mcp.js"
+            ]
         }
     }
 }

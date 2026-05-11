@@ -1,0 +1,20 @@
+{
+  "name": "detritus",
+  "interface": {
+    "displayName": "Detritus"
+  },
+  "plugins": [
+    {
+      "name": "detritus",
+      "source": {
+        "source": "local",
+        "path": "."
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Engineering"
+    }
+  ]
+}

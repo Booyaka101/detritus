@@ -4,6 +4,15 @@ MCP knowledge base server. Exposes coding knowledge as MCP tools for AI assistan
 
 ## Install
 
+**Codex plugin:**
+```bash
+codex plugin marketplace add benitogf/detritus
+```
+
+The plugin manifest lives at `.codex-plugin/plugin.json`; the bundled MCP
+launcher downloads the latest release binary into a local cache on first use,
+then starts the server.
+
 **Linux / macOS / Git Bash:**
 ```bash
 curl -sSL https://raw.githubusercontent.com/benitogf/detritus/main/install.sh | sh
