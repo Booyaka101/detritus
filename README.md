@@ -42,14 +42,17 @@ detritus --setup
 
 | Command | Doc |
 |---------|-----|
-| `/detritus:truthseeker` | Evidence-based reasoning |
-| `/detritus:plan` | Requirements analysis |
-| `/detritus:testing` | Testing decision table |
-| `/detritus:grow` | KB improvement from corrections |
-| `/detritus:optimize` | KB retrieval optimization |
-| `/detritus:coding-style` | Naming, error handling, commits |
-| `/detritus:go-modern` | Modern Go idioms (1.22+) |
-| `/detritus:line-of-sight` | Flat code, early returns |
+| `/truthseeker` | Evidence-based reasoning |
+| `/plan` | Requirements analysis |
+| `/testing` | Testing decision table |
+| `/grow` | KB improvement from corrections |
+| `/optimize` | KB retrieval optimization |
+| `/coding-style` | Naming, error handling, commits |
+| `/go-modern` | Modern Go idioms (1.22+) |
+| `/line-of-sight` | Flat code, early returns |
+
+Codex displays plugin commands with the plugin namespace, for example
+`/detritus:plan`.
 
 ## Update
 
