@@ -3,7 +3,7 @@
     "detritus": {
       "command": "node",
       "args": [
-        "../../scripts/detritus-mcp.js"
+        "./scripts/detritus-mcp.js"
       ]
     }
   }
